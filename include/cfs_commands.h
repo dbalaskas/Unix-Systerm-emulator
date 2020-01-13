@@ -1,5 +1,18 @@
 /* FILE: cfs_commands.h */
 
+#include "mds.h"
+#include "disk.h"
+
+
+#define CALL(call,error,errString,errNum)       \
+if(call == error)                               \
+{                                               \
+        perror(errString);                      \
+        exit(errNum);                           \
+}
+
+
+/*
 1. cfs workwith <FILE>
 2. cfs mkdir <DIRECTORIES>
 3. cfs touch <OPTIONS> <FILES>
@@ -14,3 +27,6 @@
 12. cfs import <SOURCES> ... <DIRECTORY>
 13. cfs export <SOURCES> ... <DIRECTORY>
 14. cfs create <OPTIONS> <FILE>. Δημιουργία ενός cfs στο αρχείο <FILE>.
+*/
+
+void cfs_create(char*,int*,int*,int*,int*);
