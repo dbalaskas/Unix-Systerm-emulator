@@ -1,14 +1,20 @@
 /* FILE: cfs_commands.h */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include "mds.h"
 #include "disk.h"
 
+typedef enum {false, true} bool;
 
-#define CALL(call,error,errString,errNum)	\
-if(call == error)				\
-{						\
-	perror(errString);			\
-	exit(errNum);				\
+#define CALL(call,error,errString,errNum,returnVal)	\
+returnVal = call;					\
+if(returnVal == error)					\
+{							\
+	if(errString != NULL)				\
+		perror(errString);			\
+	exit(errNum);					\
 }
 
 
@@ -29,4 +35,6 @@ if(call == error)				\
 14. cfs create <OPTIONS> <FILE>. Δημιουργία ενός cfs στο αρχείο <FILE>.
 */
 
-void cfs_create(char*,int*,int*,int*,int*);
+void cfs_workwith(char*);
+int cfs_create(char*,int,int,int,int);
+

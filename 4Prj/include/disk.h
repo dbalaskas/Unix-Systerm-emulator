@@ -8,6 +8,7 @@
 typedef struct superblock {
 	int cfsFileDesc;
 	int blockSize;
+	int filenameSize;
 	int maxFileSize;
 	int maxFilesPerDir;
 	int maxDatablockNum;

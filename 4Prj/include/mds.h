@@ -2,11 +2,13 @@
 
 #include <time.h>
 
+typedef enum {File, Directory, Link} cfs_type;
+
 typedef struct {
 	unsigned int nodeid;
 //	char *filename;
 	unsigned int size;
-	unsigned int type;
+	cfs_type type;
 	unsigned int parent_nodeid;
 	time_t creation_time;
 	time_t access_time;
