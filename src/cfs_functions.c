@@ -20,7 +20,7 @@ Location getLocation(int fileDesc,int move,int mode)
 Location traverse_cfs(int fileDesc,char *filename,unsigned int start_bl,unsigned int start_off)
 {
 	int		sum = 0, n, ignore = 0;
-	char		*curr_name;
+	char		*curr_name = (char*)malloc(sB.filenameSize*sizeof(char));
 
 	CALL(lseek(fileDesc,((sB.blockSize)*start_bl)+start_off,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 
@@ -30,7 +30,10 @@ Location traverse_cfs(int fileDesc,char *filename,unsigned int start_bl,unsigned
 		sum += n;
 	}
 	if(!strcmp(curr_name,filename))
+	{
+		free(curr_name);
 		return getLocation(fileDesc,0,SEEK_CUR);
+	}
 	else
 	{
 		unsigned int	curr_block, curr_offset;
@@ -59,6 +62,7 @@ Location traverse_cfs(int fileDesc,char *filename,unsigned int start_bl,unsigned
 			}
 		}
 
+		free(curr_name);
 		return loc;
 	}
 }
