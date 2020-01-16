@@ -12,9 +12,9 @@ int main(void) {
 	//scan
 
 	char	*ignore = NULL;
-	char	*command, line[60], *tmp, *option, *value, *filename;
-	int	fileDesc = -1;								//updated by cfs_create
-	bool	open_cfs = false;
+	char	*command, line[60], *tmp, *option, *value;
+	int	fileDesc = -1;						//updated by cfs_create or cfs_workwith
+	bool	open_cfs = false, create_called = false, workwith_called = false;
 
 	do{
 		printf("\n\nSelect one of the commands for cfs:\n");
@@ -46,54 +46,115 @@ int main(void) {
 			option = strtok(NULL," ");
 			if(option == NULL)
 				printf("Input error, please give a filename.\n");
-			else if(fileDesc == -1)
-				printf("%s file does not exist, try command 'cfs_create' first.\n",option);
 			else
 			{
-				cfs_workwith(option);
+				fileDesc = cfs_workwith(option,create_called);
 				open_cfs = true;
+				printf("Working with cfs file %s...\n",option);
+				workwith_called = true;
 			}
 		}
 		else if(!strcmp(command,"cfs_mkdir"))
 		{
+			if(!workwith_called)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
+			}
 		}
 		else if(!strcmp(command,"cfs_touch"))
 		{
+			if(!workwith_called)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
+			}
 		}
 		else if(!strcmp(command,"cfs_pwd"))
 		{
+			if(!workwith_called)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
+			}
 		}
 		else if(!strcmp(command,"cfs_cd"))
 		{
+			if(!workwith_called)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
+			}
 		}
 		else if(!strcmp(command,"cfs_ls"))
 		{
+			if(!workwith_called)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
+			}
 		}
 		else if(!strcmp(command,"cfs_cp"))
 		{
+			if(!workwith_called)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
+			}
 		}
 		else if(!strcmp(command,"cfs_cat"))
 		{
+			if(!workwith_called)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
+			}
 		}
 		else if(!strcmp(command,"cfs_ln"))
 		{
+			if(!workwith_called)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
+			}
 		}
 		else if(!strcmp(command,"cfs_mv"))
 		{
+			if(!workwith_called)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
+			}
 		}
 		else if(!strcmp(command,"cfs_rm"))
 		{
+			if(!workwith_called)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
+			}
 		}
 		else if(!strcmp(command,"cfs_import"))
 		{
+			if(!workwith_called)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
+			}
 		}
 		else if(!strcmp(command,"cfs_export"))
 		{
+			if(!workwith_called)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
+			}
 		}
 		else if(!strcmp(command,"cfs_create"))
 		{
 			int	bSize = -1, filenameSize = -1, maxFSize = -1, maxDirFileNum = -1;
 			int	nameSize = FILENAME_SIZE;
+			char	*filename;
 
 			option = strtok(NULL," ");
 			if(option == NULL)
@@ -132,17 +193,19 @@ int main(void) {
 				}
 
 				fileDesc = cfs_create(filename,bSize,filenameSize,maxFSize,maxDirFileNum);
+				create_called = true;
+				printf("Cfs file %s created.\n",filename);
+				free(filename);
 			}
 		}
 		else if(!strcmp(command,"cfs_exit"))
 		{
 			int ignore = 0;
 			if(fileDesc != -1 && open_cfs == true)
+			{
 				CALL(close(fileDesc),-1,"Error closing file for cfs: ",4,ignore);
-			open_cfs = false;
-
-			if(fileDesc != -1)
-				free(filename);
+				open_cfs = false;
+			}
 		}
 		else if(!strcmp(command,"cfs_man"))
 		{
