@@ -15,11 +15,15 @@ typedef struct {
 	time_t modification_time;
 //	Datastream data;
 } MDS;
-/*
+
 typedef struct {
-	unsigned int datablocks[DATABLOCK_NUM];
+        unsigned int blocknum;
+        unsigned int offset;
+} Location;
+
+typedef struct {
+        Location *datablocks;
 } Datastream;
-*/
 
 /*
  *
