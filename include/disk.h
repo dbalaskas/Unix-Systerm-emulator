@@ -14,6 +14,7 @@ typedef struct superblock {
 	int metadataSize;
 	int root;
 	int blockCounter;
+	int nodeidCounter;
 	int nextSuperBlock;
 	int stackSize;
 } superBlock;
