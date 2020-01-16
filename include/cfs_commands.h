@@ -1,22 +1,6 @@
 /* FILE: cfs_commands.h */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include "mds.h"
-#include "disk.h"
-
-typedef enum {false, true} bool;
-
-#define CALL(call,error,errString,errNum,returnVal)	\
-returnVal = call;					\
-if(returnVal == error)					\
-{							\
-	if(errString != NULL)				\
-		perror(errString);			\
-	exit(errNum);					\
-}
-
+#include "cfs_functions.h"
 
 /*
 1. cfs workwith <FILE>
@@ -36,5 +20,6 @@ if(returnVal == error)					\
 */
 
 void cfs_workwith(char*);
+bool cfs_touch(int,char*,touch_mode);
 int cfs_create(char*,int,int,int,int);
 

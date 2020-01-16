@@ -22,18 +22,20 @@
 14. cfs create <OPTIONS> <FILE>. Δημιουργία ενός cfs στο αρχείο <FILE>.
 */
 
+superBlock sB;
+
 void cfs_workwith(char *filename)
 {
 	int		fd = 0, ignore = 0, n, sum = 0;
 	time_t		current_time;
-	superBlock	sB;
 	MDS		metadata;
+	Datastream	data;
 
 	CALL(open(filename, O_RDWR),-1,"Error opening file for cfs: ",2,fd);
 
 	while(sum < sizeof(superBlock))
 	{
-		CALL(read(fd,(&sB)+sum,sizeof(superBlock)),-1,"Error reading from cfs file: ",3,n);	//read superBlock (first block)
+		CALL(read(fd,(&sB)+sum,sizeof(superBlock)),-1,"Error reading from cfs file: ",2,n);	//read superBlock (first block)
 		sum += n;
 	}
 
@@ -68,17 +70,82 @@ void cfs_workwith(char *filename)
 		CALL(write(fd,(&metadata)+sum,sizeof(MDS)),-1,"Error writing in cfs file: ",3,n);
 		sum += n;
 	}
+	data.datablocks = (Location*)malloc((sB.maxDatablockNum)*sizeof(Location));
 	for(int i=0; i<(sB.maxDatablockNum); i++)
 	{
-		CALL(write(fd,"-1",2),-1,"Error writing in cfs file: ",3,ignore);
-//		CALL(write(fd,"0",2),-1,"Error writing in cfs file: ",3,ignore);		//2-dimensional array for datablocknum+offset
+		(data.datablocks[i]).blocknum = 0;
+		(data.datablocks[i]).offset = 0;
+		sum = 0;
+		while(sum < sizeof(unsigned int))
+		{
+			CALL(write(fd,&(data.datablocks[i].blocknum)+sum,sizeof(unsigned int)),-1,"Error writing in cfs file: ",3,n);
+			sum += n;
+		}
+		sum = 0;
+		while(sum < sizeof(unsigned int))
+		{
+			CALL(write(fd,&(data.datablocks[i].offset)+sum,sizeof(unsigned int)),-1,"Error writing in cfs file: ",3,n);
+			//array of pairs of unsigned int: <blocknum,offset>
+			sum += n;
+		}
 	}
+
+	free(data.datablocks);
+}
+
+bool cfs_touch(int fd,char *filename,touch_mode mode)
+{
+	int	ignore = 0;
+	bool	touched;
+
+	CALL(lseek(fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+
+	if(mode == CRE)
+	{
+	}
+	else
+	{
+		int		n, sum = 0;
+		time_t		curr_time;
+		Location	loc;
+		MDS		metadata;
+
+		loc = traverse_cfs(fd,filename,1,0);
+		if(!loc.blocknum)
+		{
+			printf("Couldn't find file %s in cfs.\n",filename);
+			touched = false;
+		}
+		else
+		{
+			CALL(lseek(fd,((loc.blocknum)*(sB.blockSize))+loc.offset+sB.filenameSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			while(sum < sizeof(MDS))
+			{
+				CALL(read(fd,(&metadata)+sum,sizeof(MDS)),-1,"Error reading from cfs file: ",2,n);
+				sum += n;
+			}
+			curr_time = time(NULL);
+			if(mode == ACC)
+				metadata.access_time = curr_time;
+			else if(mode == MOD)
+				metadata.modification_time = curr_time;
+
+			sum = 0;
+			while(sum < sizeof(MDS))
+			{
+				CALL(write(fd,(&metadata)+sum,sizeof(MDS)),-1,"Error writing in cfs file: ",3,n);
+				sum += n;
+			}
+			touched = true;
+		}
+	}
+
+	return touched;
 }
 
 int cfs_create(char *filename,int bSize,int nameSize,int maxFSize,int maxDirFileNum)
 {
 	int		fd = 0, ignore = 0, n, sum = 0;
-	superBlock	sB;
 
 	CALL(creat(filename, S_IRWXU | S_IXGRP),-1,"Error creating file for cfs: ",1,fd);
 

@@ -1,6 +1,5 @@
 /* FILE: cfs.c */
 
-#include <string.h>
 #include "../include/cfs_commands.h"
 
 int main(void) {
@@ -52,6 +51,7 @@ int main(void) {
 			{
 				cfs_workwith(option);
 				open_cfs = true;
+				printf("Working with cfs file %s...\n",option);
 			}
 		}
 		else if(!strcmp(command,"cfs_mkdir"))
@@ -59,6 +59,37 @@ int main(void) {
 		}
 		else if(!strcmp(command,"cfs_touch"))
 		{
+			option = strtok(NULL," ");
+			if(option == NULL)
+				printf("Input error, too few arguments.\n");
+			else
+			{
+				touch_mode	mode;
+
+				while(option != NULL)
+				{
+					if(!strcmp(option,"-a"))
+						mode = ACC;
+					else if(!strcmp(option,"-m"))
+						mode = MOD;
+					else
+						mode = CRE;
+
+					option = strtok(NULL," ");
+					if(option == NULL)
+						printf("Input error, please give a filename.\n");
+					else
+					{
+						bool	touched;
+
+						touched = cfs_touch(fileDesc,option,mode);
+						if(touched)
+							printf("File %s touched in cfs.\n",option);
+					}
+
+					option = strtok(NULL," ");
+				}
+			}
 		}
 		else if(!strcmp(command,"cfs_pwd"))
 		{
@@ -132,6 +163,7 @@ int main(void) {
 				}
 
 				fileDesc = cfs_create(filename,bSize,filenameSize,maxFSize,maxDirFileNum);
+				printf("Cfs file %s created.\n",filename);
 			}
 		}
 		else if(!strcmp(command,"cfs_exit"))

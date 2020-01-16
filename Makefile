@@ -16,7 +16,7 @@ IDIR= include
 DEPS= $(wildcard $(IDIR)/*.h)
 ODIR= build
 
-default: cfs cfs_commands
+default: cfs cfs_commands cfs_functions
 	@echo "Compiling Project..."
 test:
 	@echo "source directory: " $(SRCDIR)
@@ -27,11 +27,14 @@ test:
 $(ODIR)/%.o: $(SRCDIR)/%.c
 	@echo "Creating object " $@ "..."
 	$(CXX) -c -o $@ $< $(CXXFLAGS)
-cfs: $(ODIR)/cfs.o $(ODIR)/cfs_commands.o
+cfs: $(ODIR)/cfs.o $(ODIR)/cfs_commands.o $(ODIR)/cfs_functions.o
 	@echo "Creating cfs..."
 	$(CXX) -o $(BDIR)/$@ $^ $(LDLIBS) $(CXXFLAGS)
 cfs_commands: $(ODIR)/cfs_commands.o
 	@echo "Creating cfs_commands..."
+	$(CXX) -o $(BDIR)/$@ $^ $(LDLIBS) $(CXXFLAGS)
+cfs_functions: $(ODIR)/cfs_functions.o
+	@echo "Creating cfs_functions..."
 	$(CXX) -o $(BDIR)/$@ $^ $(LDLIBS) $(CXXFLAGS)
 clean:
 	@echo "Cleaning up..."
@@ -39,6 +42,6 @@ clean:
 	$(RM) $(BDIR)/*
 debug:
 	@echo "Debugging cfs..."
-	$(CXX) $(GDBFLAGS) $(SRCDIR)/cfs.c $(SRCDIR)/cfs_commands.c -o $(BDIR)/cfs
+	$(CXX) $(GDBFLAGS) $(SRCDIR)/cfs.c $(SRCDIR)/cfs_commands.c $(SRCDIR)/cfs_functions.c -o $(BDIR)/cfs
 	rm -f $(SRCDIR)/myfiles.cfs
 	gdb $(BDIR)/cfs
