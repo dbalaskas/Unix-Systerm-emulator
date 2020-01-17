@@ -11,7 +11,7 @@ typedef struct superblock {
 	int maxFileSize;
 	int maxFilesPerDir;
 	int maxDatablockNum;
-	int metadataSize;
+	int metadataBlockNum;
 	int root;
 	int blockCounter;
 	int nodeidCounter;

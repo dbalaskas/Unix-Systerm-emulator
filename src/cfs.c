@@ -12,7 +12,7 @@ int main(void) {
 
 	char	*ignore = NULL;
 	char	*command, line[60], *tmp, *option, *value;
-    char    *fileName;
+    // char    *fileName;
 	int	fileDesc = -1;						//updated by cfs_create or cfs_workwith
 	bool	open_cfs = false, workwith_called = false;
 
@@ -32,8 +32,9 @@ int main(void) {
 			"12. cfs_import <SOURCES> ... <DIRECTORY>\n"
 			"13. cfs_export <SOURCES> ... <DIRECTORY>\n"
 			"14. cfs_create <OPTIONS> <FILE>\n"
-			"15. cfs_exit\n"
-			"16. cfs_man <COMMAND>\n\n");
+			"15. cfs_man <COMMAND>\n"
+            "16. cfs_close\n"
+			"17. cfs_exit\n\n");
 
 		CALL(fgets(line,sizeof(line),stdin),NULL,NULL,6,ignore);
 		tmp = strtok(line,"\n");

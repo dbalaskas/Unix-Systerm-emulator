@@ -22,4 +22,5 @@
 int cfs_workwith(char*,bool);
 bool cfs_touch(int,char*,touch_mode);
 int cfs_create(char*,int,int,int,int);
+bool cfs_close(int, bool);
 

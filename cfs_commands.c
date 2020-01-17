@@ -22,18 +22,18 @@
 14. cfs create <OPTIONS> <FILE>. Δημιουργία ενός cfs στο αρχείο <FILE>.
 */
 
-superBlock sB;
+// superBlock sB;
 
-int cfs_workwith(char *filename,bool open_cfs)
+int cfs_workwith(char *filename,bool create_called)
 {
 	int	fd = -1, ignore = 0, n, sum = 0;
-	if(open_cfs == true)
+
+	CALL(open(filename, O_RDWR),-1,"Error opening file for cfs: ",2,fd);
+
+	if(create_called == false)
 	{
-        perror("Error: a cfs file is already open. Close it if you want to open other cfs file.\n");
-    } else {
-	    CALL(open(filename, O_RDWR),-1,"Error opening file for cfs: ",2,fd);
 		CALL(lseek(fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-        while(sum < sizeof(superBlock))
+		while(sum < sizeof(superBlock))
 		{
 			CALL(read(fd,(&sB)+sum,sizeof(superBlock)),-1,"Error reading from cfs file: ",2,n);
 			sum += n;
@@ -52,7 +52,8 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 
 	if(mode == CRE)
 	{
-		int		n, sum = 0, i, blocknum, parent_blocknum;
+		int		n, sum = 0, i;
+        unsigned int blocknum, parent_blocknum;
 		char		*split, *temp, *parent_name = (char*)malloc((sB.filenameSize)*sizeof(char));
 		time_t		curr_time;
 		MDS		metadata, parent_mds;
@@ -160,7 +161,8 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 	}
 	else
 	{
-		int		n, sum = 0, blocknum;
+		int		n, sum = 0;
+        unsigned int blocknum;
 		time_t		curr_time;
 		MDS		metadata;
 
@@ -200,7 +202,7 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 
 int cfs_create(char *filename,int bSize,int nameSize,int maxFSize,int maxDirFileNum)
 {
-	int		fd = 0, ignore = 0, n, sum = 0, temp;
+	int		fd = 0, ignore = 0, n, sum = 0;
 	time_t		current_time;
 	MDS		metadata;
 	Datastream	data;
@@ -211,11 +213,7 @@ int cfs_create(char *filename,int bSize,int nameSize,int maxFSize,int maxDirFile
 	sB.filenameSize = (nameSize != -1) ? nameSize : FILENAME_SIZE;
 	sB.maxFileSize = (maxFSize != -1) ? maxFSize : MAX_FILE_SIZE;
 	sB.maxFilesPerDir = (maxDirFileNum != -1) ? maxDirFileNum : MAX_DIRECTORY_FILE_NUMBER;
-	sB.maxDatablockNum = (sB.maxFileSize) / (sB.blockSize);
-	sB.metadataBlockNum = (sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int)) / sB.blockSize;
-	temp = (sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int) + (sB.metadataBlockNum)*sizeof(unsigned int)) / sB.blockSize;
-	if(sB.metadataBlockNum < temp)
-		sB.metadataBlockNum = temp;
+	sB.metadataSize = (sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int)) / sB.blockSize;
 	sB.root = 1;
 	sB.blockCounter = 1;										//assume block-counting is zero-based
 	sB.nodeidCounter = 1;
@@ -270,14 +268,3 @@ int cfs_create(char *filename,int bSize,int nameSize,int maxFSize,int maxDirFile
 	return fd;
 }
 
-bool cfs_close(int fileDesc,bool open_cfs) {
-    int ignore = 0;
-    if(fileDesc != -1 && open_cfs == true)
-    {
-        update_superBlock(fileDesc);
-        CALL(close(fileDesc),-1,"Error closing file for cfs: ",4,ignore);
-        open_cfs = false;
-        return true;
-    }
-    return false;
-}
