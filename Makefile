@@ -7,6 +7,7 @@ CXX= gcc
 CXXFLAGS= -Wall -g3
 LDLIBS= -lpthread -lrt
 RM= rm -f
+GDBFLAGS = -ggdb3
 
 BDIR= bin
 SRCDIR= src
@@ -15,7 +16,7 @@ IDIR= include
 DEPS= $(wildcard $(IDIR)/*.h)
 ODIR= build
 
-default: mystation bus station-manager comptroller
+default: cfs cfs_commands
 	@echo "Compiling Project..."
 test:
 	@echo "source directory: " $(SRCDIR)
@@ -26,19 +27,18 @@ test:
 $(ODIR)/%.o: $(SRCDIR)/%.c
 	@echo "Creating object " $@ "..."
 	$(CXX) -c -o $@ $< $(CXXFLAGS)
-mystation: $(ODIR)/mystation.o $(ODIR)/shm_functions.o $(ODIR)/bus_info.o
-	@echo "Creating mystation..."
+cfs: $(ODIR)/cfs.o $(ODIR)/cfs_commands.o
+	@echo "Creating cfs..."
 	$(CXX) -o $(BDIR)/$@ $^ $(LDLIBS) $(CXXFLAGS)
-bus: $(ODIR)/bus.o $(ODIR)/shm_functions.o $(ODIR)/bus_info.o
-	@echo "Creating bus..."
-	$(CXX) -o $(BDIR)/$@ $^ $(LDLIBS) $(CXXFLAGS)
-station-manager: $(ODIR)/station-manager.o $(ODIR)/shm_functions.o $(ODIR)/bus_info.o
-	@echo "Creating station-manager..."
-	$(CXX) -o $(BDIR)/$@ $^ $(LDLIBS) $(CXXFLAGS)
-comptroller: $(ODIR)/comptroller.o $(ODIR)/shm_functions.o $(ODIR)/bus_info.o
-	@echo "Creating comptroller..."
+cfs_commands: $(ODIR)/cfs_commands.o
+	@echo "Creating cfs_commands..."
 	$(CXX) -o $(BDIR)/$@ $^ $(LDLIBS) $(CXXFLAGS)
 clean:
 	@echo "Cleaning up..."
 	$(RM) $(ODIR)/*
 	$(RM) $(BDIR)/*
+debug:
+	@echo "Debugging cfs..."
+	$(CXX) $(GDBFLAGS) $(SRCDIR)/cfs.c $(SRCDIR)/cfs_commands.c -o $(BDIR)/cfs
+	rm -f $(SRCDIR)/myfiles.cfs
+	gdb $(BDIR)/cfs

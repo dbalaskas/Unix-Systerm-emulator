@@ -1,5 +1,24 @@
 /* FILE: cfs_commands.h */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include "mds.h"
+#include "disk.h"
+
+typedef enum {false, true} bool;
+
+#define CALL(call,error,errString,errNum,returnVal)	\
+returnVal = call;					\
+if(returnVal == error)					\
+{							\
+	if(errString != NULL)				\
+		perror(errString);			\
+	exit(errNum);					\
+}
+
+
+/*
 1. cfs workwith <FILE>
 2. cfs mkdir <DIRECTORIES>
 3. cfs touch <OPTIONS> <FILES>
@@ -14,3 +33,8 @@
 12. cfs import <SOURCES> ... <DIRECTORY>
 13. cfs export <SOURCES> ... <DIRECTORY>
 14. cfs create <OPTIONS> <FILE>. Δημιουργία ενός cfs στο αρχείο <FILE>.
+*/
+
+int cfs_workwith(char*,bool);
+int cfs_create(char*,int,int,int,int);
+
