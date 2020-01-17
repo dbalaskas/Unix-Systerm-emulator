@@ -43,5 +43,4 @@ clean:
 debug:
 	@echo "Debugging cfs..."
 	$(CXX) $(GDBFLAGS) $(SRCDIR)/cfs.c $(SRCDIR)/cfs_commands.c $(SRCDIR)/cfs_functions.c -o $(BDIR)/cfs
-	rm -f $(SRCDIR)/myfiles.cfs
 	gdb $(BDIR)/cfs

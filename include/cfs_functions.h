@@ -19,6 +19,7 @@ if(returnVal == error)					\
 	exit(errNum);					\
 }
 
+void update_superBlock(int);
 Location getLocation(int,int,int);
 Location traverse_cfs(int,char*,unsigned int,unsigned int);
 

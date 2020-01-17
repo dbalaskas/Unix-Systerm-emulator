@@ -49,6 +49,7 @@ int main(void) {
 			{
 				fileDesc = cfs_workwith(option,create_called);
 				open_cfs = true;
+				workwith_called = true;
 				printf("Working with cfs file %s...\n",option);
 			}
 		}
@@ -82,7 +83,8 @@ int main(void) {
 						else
 							mode = CRE;
 
-						option = strtok(NULL," ");
+						if(mode != CRE)
+							option = strtok(NULL," ");
 						if(option == NULL)
 							printf("Input error, please give a filename.\n");
 						else
@@ -232,6 +234,7 @@ int main(void) {
 			int ignore = 0;
 			if(fileDesc != -1 && open_cfs == true)
 			{
+				update_superBlock(fileDesc);
 				CALL(close(fileDesc),-1,"Error closing file for cfs: ",4,ignore);
 				open_cfs = false;
 			}

@@ -68,6 +68,8 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 
 		split = strtok(filename,"/");									//keep parent's name
 		temp = strtok(NULL,"/");
+		if(temp == NULL)
+			strcpy(parent_name,"/");						//TEMPORARY, CASE OF cd!
 		while(temp != NULL)
 		{
 			strcat(parent_name,split);
@@ -75,6 +77,12 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 			temp = strtok(NULL,"/");
 		}
 		parent_loc = traverse_cfs(fd,parent_name,1,0);							//find parent
+		if(!parent_loc.blocknum)
+		{
+			printf("Error, could not find parent directory in cfs.\n");
+			free(parent_name);
+			return false;
+		}
 		move = ((sB.blockSize)*(parent_loc.blocknum)) + parent_loc.offset + sB.filenameSize;
 		CALL(lseek(fd,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 		while(sum < sizeof(MDS))
@@ -102,7 +110,7 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 
 		loc = getLocation(fd,0,SEEK_END);							//will move ptr to the end of file
 		sum = 0;
-		while(sum < sB.filenameSize)								//new file's name
+		while(sum < (strlen(filename)+1))								//new file's name
 		{
 			CALL(write(fd,filename+sum,strlen(filename)+1),-1,"Error writing in cfs file: ",3,n);
 			sum += n;

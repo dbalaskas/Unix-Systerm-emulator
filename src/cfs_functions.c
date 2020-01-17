@@ -5,13 +5,25 @@
 #include <fcntl.h>				//creat, open
 #include "../include/cfs_functions.h"
 
+void update_superBlock(int fileDesc)
+{
+	int	ignore = 0, n, sum = 0;
+
+	CALL(lseek(fileDesc,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	while(sum < sizeof(superBlock))
+	{
+		CALL(write(fileDesc,(&sB)+sum,sizeof(superBlock)),-1,"Error writing in cfs file: ",3,n);
+		sum += n;
+	}
+}
+
 Location getLocation(int fileDesc,int move,int mode)
 {													//mode: SEEK_SET | SEEK_CUR | SEEK_END
 	int		bytes;
 	Location	loc;
 
 	CALL(lseek(fileDesc,move,mode),-1,"Error moving ptr in cfs file: ",5,bytes);
-	loc.blocknum = (int) (bytes / sB.blockSize) + 1;						//ignore superBlock (0 block)
+	loc.blocknum = (int) (bytes / sB.blockSize);
 	loc.offset = bytes % sB.blockSize;
 
 	return loc;
@@ -32,7 +44,7 @@ Location traverse_cfs(int fileDesc,char *filename,unsigned int start_bl,unsigned
 	if(!strcmp(curr_name,filename))
 	{
 		free(curr_name);
-		return getLocation(fileDesc,0,SEEK_CUR);
+		return getLocation(fileDesc,(-1)*sB.filenameSize,SEEK_CUR);
 	}
 	else
 	{
