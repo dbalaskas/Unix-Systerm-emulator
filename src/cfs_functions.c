@@ -17,24 +17,22 @@ void update_superBlock(int fileDesc)
 	}
 }
 
-Location getLocation(int fileDesc,int move,int mode)
+unsigned int getLocation(int fileDesc,int move,int mode)
 {													//mode: SEEK_SET | SEEK_CUR | SEEK_END
-	int		bytes;
-	Location	loc;
+	int		bytes, blocknum;
 
 	CALL(lseek(fileDesc,move,mode),-1,"Error moving ptr in cfs file: ",5,bytes);
-	loc.blocknum = (int) (bytes / sB.blockSize);
-	loc.offset = bytes % sB.blockSize;
+	blocknum = (int) (bytes / sB.blockSize);
 
-	return loc;
+	return blocknum;
 }
 
-Location traverse_cfs(int fileDesc,char *filename,unsigned int start_bl,unsigned int start_off)
+unsigned int traverse_cfs(int fileDesc,char *filename,unsigned int start_bl)
 {
 	int		sum = 0, n, ignore = 0;
 	char		*curr_name = (char*)malloc(sB.filenameSize*sizeof(char));
 
-	CALL(lseek(fileDesc,((sB.blockSize)*start_bl)+start_off,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	CALL(lseek(fileDesc,(sB.blockSize)*start_bl,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 
 	while(sum < sB.filenameSize)
 	{
@@ -48,33 +46,29 @@ Location traverse_cfs(int fileDesc,char *filename,unsigned int start_bl,unsigned
 	}
 	else
 	{
-		unsigned int	curr_block, curr_offset;
+		unsigned int	curr_block, blocknum;
 		Datastream	data;
-		Location	loc;
 
-		data.datablocks = (Location*)malloc((sB.maxDatablockNum)*sizeof(Location));
+		data.datablocks = (unsigned int*)malloc((sB.maxDatablockNum)*sizeof(unsigned int));
 
 		CALL(lseek(fileDesc,sizeof(MDS),SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
 		for(int i = 0; i<sB.maxDatablockNum; i++)
 		{
-			curr_block = (data.datablocks[i]).blocknum;
-			curr_offset = (data.datablocks[i]).offset;
+			curr_block = data.datablocks[i];
 			if(curr_block == 0)
 			{
-				loc.blocknum = 0;
-				loc.offset = 0;
-
+				blocknum = 0;
 				break;
 			}
 			else
 			{
-				loc = traverse_cfs(fileDesc,filename,curr_block,curr_offset);
-				if(loc.blocknum)
+				blocknum = traverse_cfs(fileDesc,filename,curr_block);
+				if(blocknum)
 					break;
 			}
 		}
 
 		free(curr_name);
-		return loc;
+		return blocknum;
 	}
 }

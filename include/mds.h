@@ -1,12 +1,12 @@
 /* FILE: mds.h */
 
 #include <time.h>
-
+#include "disk.h"
 typedef enum {File, Directory, Link} cfs_type;
 
 typedef struct {
 	unsigned int nodeid;
-//	char *filename;
+//	char filename;
 	unsigned int size;
 	cfs_type type;
 	unsigned int parent_nodeid;
@@ -15,14 +15,16 @@ typedef struct {
 	time_t modification_time;
 //	Datastream data;
 } MDS;
-
+/*
 typedef struct {
 	unsigned int blocknum;
 	unsigned int offset;
 } Location;
+*/
 
 typedef struct {
-	Location *datablocks;
+//	Location *datablocks;
+	unsigned int *datablocks;
 } Datastream;
 
 /*

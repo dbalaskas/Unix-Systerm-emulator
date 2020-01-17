@@ -20,6 +20,6 @@ if(returnVal == error)					\
 }
 
 void update_superBlock(int);
-Location getLocation(int,int,int);
-Location traverse_cfs(int,char*,unsigned int,unsigned int);
+unsigned int getLocation(int,int,int);
+unsigned int traverse_cfs(int,char*,unsigned int);
 
