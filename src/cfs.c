@@ -233,6 +233,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_close"))
 		{
             if (cfs_close(fileDesc, open_cfs) == true) {
+                open_cfs = false;
                 // printf("cfs file: %s has just been closed.\n", fileName);
                 printf("cfs file is closed.\n");
             }

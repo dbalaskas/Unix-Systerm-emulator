@@ -7,6 +7,7 @@
 #include "mds.h"
 #include "disk.h"
 
+
 typedef enum {false, true} bool;
 typedef enum {CRE, ACC, MOD} touch_mode;
 
@@ -22,4 +23,5 @@ if(returnVal == error)					\
 void update_superBlock(int);
 unsigned int getLocation(int,int,int);
 unsigned int traverse_cfs(int,char*,unsigned int);
+unsigned int getEmptyBlock();
 

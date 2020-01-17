@@ -1,7 +1,6 @@
 /* FILE: mds.h */
 
 #include <time.h>
-// #include "disk.h"
 typedef enum {File, Directory, Link} cfs_type;
 
 typedef struct {
