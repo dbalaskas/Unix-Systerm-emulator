@@ -1,6 +1,5 @@
 /* FILE: cfs.c */
 
-#include <string.h>
 #include "../include/cfs_commands.h"
 
 int main(void) {
@@ -13,8 +12,9 @@ int main(void) {
 
 	char	*ignore = NULL;
 	char	*command, line[60], *tmp, *option, *value;
+    char    *fileName;
 	int	fileDesc = -1;						//updated by cfs_create or cfs_workwith
-	bool	open_cfs = false, create_called = false, workwith_called = false;
+	bool	open_cfs = false, workwith_called = false;
 
 	do{
 		printf("\n\nSelect one of the commands for cfs:\n");
@@ -48,10 +48,10 @@ int main(void) {
 				printf("Input error, please give a filename.\n");
 			else
 			{
-				fileDesc = cfs_workwith(option,create_called);
+				fileDesc = cfs_workwith(option, open_cfs);
 				open_cfs = true;
-				printf("Working with cfs file %s...\n",option);
 				workwith_called = true;
+				printf("Working with cfs file %s...\n",option);
 			}
 		}
 		else if(!strcmp(command,"cfs_mkdir"))
@@ -68,6 +68,38 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
+				option = strtok(NULL," ");
+				if(option == NULL)
+					printf("Input error, too few arguments.\n");
+				else
+				{
+					touch_mode	mode;
+
+					while(option != NULL)
+					{
+						if(!strcmp(option,"-a"))
+							mode = ACC;
+						else if(!strcmp(option,"-m"))
+							mode = MOD;
+						else
+							mode = CRE;
+
+						if(mode != CRE)
+							option = strtok(NULL," ");
+						if(option == NULL)
+							printf("Input error, please give a filename.\n");
+						else
+						{
+							bool	touched;
+
+							touched = cfs_touch(fileDesc,option,mode);
+							if(touched)
+								printf("File %s touched in cfs.\n",option);
+						}
+
+						option = strtok(NULL," ");
+					}
+				}
 			}
 		}
 		else if(!strcmp(command,"cfs_pwd"))
@@ -193,26 +225,32 @@ int main(void) {
 				}
 
 				fileDesc = cfs_create(filename,bSize,filenameSize,maxFSize,maxDirFileNum);
-				create_called = true;
 				printf("Cfs file %s created.\n",filename);
 				free(filename);
 			}
 		}
-		else if(!strcmp(command,"cfs_exit"))
+		else if(!strcmp(command,"cfs_close"))
 		{
-			int ignore = 0;
-			if(fileDesc != -1 && open_cfs == true)
-			{
-				CALL(close(fileDesc),-1,"Error closing file for cfs: ",4,ignore);
-				open_cfs = false;
-			}
+            if (cfs_close(fileDesc, open_cfs) == true) {
+                // printf("cfs file: %s has just been closed.\n", fileName);
+                printf("cfs file is closed.\n");
+            }
+            else
+            {
+                printf("There is no cfs file opened.\n");
+            }
+            
 		}
 		else if(!strcmp(command,"cfs_man"))
 		{
 		}
+        else if(!strcmp(command,"cfs_exit"))
+		{
+			cfs_close(fileDesc,open_cfs);
+            printf("End of Program.\n");
+            return 0;
+		}
 		else
 			printf("Command not found, please try again.\n");
-	} while(strcmp(command,"cfs_exit"));
-
-	return 0;
+	} while(1);
 }

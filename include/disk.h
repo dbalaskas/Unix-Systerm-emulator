@@ -19,5 +19,7 @@ typedef struct superblock {
 	int stackSize;
 } superBlock;
 
+extern superBlock sB;
+
 void writeStack();
 void getStack();

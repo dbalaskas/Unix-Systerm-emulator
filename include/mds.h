@@ -17,12 +17,12 @@ typedef struct {
 } MDS;
 
 typedef struct {
-        unsigned int blocknum;
-        unsigned int offset;
+	unsigned int blocknum;
+	unsigned int offset;
 } Location;
 
 typedef struct {
-        Location *datablocks;
+	Location *datablocks;
 } Datastream;
 
 /*
