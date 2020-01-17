@@ -1,5 +1,7 @@
 /* FILE: mds.h */
 
+#include <time.h>
+
 typedef struct {
 	unsigned int nodeid;
 	char *filename;
