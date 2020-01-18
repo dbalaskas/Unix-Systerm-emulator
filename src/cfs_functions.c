@@ -12,7 +12,7 @@ List *holes;
 void update_superBlock(int fileDesc)
 {
 	int             ignore = 0, n, sum = 0, iblock[sB.iTableBlocksNum], tableOffset = 0;
-    unsigned int    new_blockNum, next_block;
+	unsigned int    new_blockNum;
 
 	// CALL(lseek(fileDesc,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 	// while(sum < sizeof(superBlock))
@@ -21,23 +21,49 @@ void update_superBlock(int fileDesc)
 	// 	sum += n;
 	// }
     
-    CALL(lseek(fileDesc,sizeof(superBlock),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-    
-    // Write the inodeTable on the file
-    sum = 0;
-    while(sum < sB.iTableBlocksNum*sizeof(int))
-    {
-        CALL(read(fileDesc,iblock+sum,sB.iTableBlocksNum*sizeof(int)),-1,"Error reading from cfs file: ",2,n);
-        sum += n;
-    }
-    int size = sizeof(bool) + sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int);
-    int size_to_write;
-    // For each node of the table
-    for(int j=0; j<sB.iTableCounter; j++) {
+	// Write the inodeTable on the file
+	int	difference = sB.iTableBlocksNum*sizeof(unsigned int);
+	int	overflow_block = sB.nextSuperBlock, overflow_prev, overflow_next;
+	int	size_to_read, readSize = 0;
+	int	remainingblockSize = sB.blockSize - sizeof(int);
+
+	while(difference > 0)										//read inodeTable
+	{
+		CALL(lseek(fileDesc,overflow_block*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		overflow_prev = overflow_block;
+		sum = 0;
+		while(sum < sizeof(int))								//read overflow blocknum
+		{
+			CALL(read(fileDesc,(&overflow_block)+sum,sizeof(int)),-1,"Error reading from cfs file: ",2,n);
+			sum += n;
+		}
+
+		size_to_read = (remainingblockSize < difference) ? remainingblockSize : difference;
+		sum = 0;
+		while(sum < size_to_read)
+		{
+			CALL(read(fileDesc,iblock+readSize+sum,size_to_read),-1,"Error reading from cfs file: ",2,n);
+	        	sum += n;
+		}
+		readSize += size_to_read;
+		difference -= size_to_read;
+		if(difference == 0)
+		{
+			overflow_next = overflow_block;
+			overflow_block = overflow_prev;							//block where the inodeTable ends
+		}
+	}
+
+	int size = sizeof(bool) + sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int);
+	int size_to_write;
+	int writtenSize, remainingSize;
+	int freeSpaces, move;
+	// For each node of the table
+	for(int j=0; j<sB.iTableCounter; j++) {
         // If it has content (flag==true)
-        if (*(inodeTable+j*size) == true) {
-            
-            int remainingSize = size-sizeof(bool);
+        	if (*(inodeTable+j*size) == true) {
+
+	        	remainingSize = size-sizeof(bool);
             // if((sB.iTableBlocksNum-tableOffset)/sB.metadataBlocksNum >= 1)
             // if (sB.iTableBlocksNum-tableOffset > 0)
             // {
@@ -69,93 +95,142 @@ void update_superBlock(int fileDesc)
             //     for (int i=0;i<newBlocks;i++) {
 
 
-            int writtenSize = 0;
-            // For each of the metadata blocks that it has to allocate and write
-            for(int i=0; i<sB.metadataBlocksNum; i++) {
-                // If there are still allocated blocks for the inodeTable Map
-                if (tableOffset < sB.iTableBlocksNum) {
-                    CALL(lseek(fileDesc,iblock[tableOffset]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-                // Else allocate a new block (with getEmptyBlock())
-                } else {
-                    new_blockNum = getEmptyBlock();
-                    CALL(lseek(fileDesc,new_blockNum*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-                }
-                tableOffset++;
+			writtenSize = 0;
+			//free space in block after end of inodeTable
+			freeSpaces = remainingblockSize - (remainingblockSize % (sB.iTableBlocksNum*sizeof(unsigned int)));
+	            	// For each of the metadata blocks that it has to allocate and write
+	      	      	for(int i=0; i<sB.metadataBlocksNum; i++) {
+            			// If there are still allocated blocks for the inodeTable Map
+                		if (tableOffset < sB.iTableBlocksNum) {
+	                		CALL(lseek(fileDesc,iblock[tableOffset]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		                // Else allocate a new block (with getEmptyBlock())
+        	        	} else {
+                	    		new_blockNum = getEmptyBlock();
+                    			CALL(lseek(fileDesc,new_blockNum*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	                	}
 
-                // Write on the block (fileDesc is on the right spot)
-                size_to_write = (remainingSize > sB.blockSize) ? sB.blockSize : remainingSize;
-                sum = 0;
-                while(sum < size_to_write)
-                {
-                    CALL(write(fileDesc,inodeTable+j*size+sizeof(bool)+sum+writtenSize,size_to_write),-1,"Error writing from cfs file: ",2,n);
-                    sum += n;
-                }
-                writtenSize += size_to_write;
-                remainingSize -= size_to_write;
+                		// Write on the block (fileptr is on the right spot)
+                		size_to_write = (remainingSize > sB.blockSize) ? sB.blockSize : remainingSize;
+	                	sum = 0;
+        	        	while(sum < size_to_write)
+                		{
+                			CALL(write(fileDesc,inodeTable+j*size+sizeof(bool)+sum+writtenSize,size_to_write),-1,"Error writing from cfs file: ",2,n);
+                    			sum += n;
+	                	}
+        	        	writtenSize += size_to_write;
+                		remainingSize -= size_to_write;
 
-                // Write the new blockNum in the inodeTable Map
-                if (tableOffset == sB.iTableBlocksNum) {
-                    // If there is space in the block
-                    if (sizeof(superBlock) + (sB.iTableBlocksNum+1)*sizeof(int) < sB.blockSize) {
-                        CALL(lseek(fileDesc,sizeof(superBlock) + sB.iTableBlocksNum*sizeof(int),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-                    // Else allocate a new block for the cfs metadata
-                    } else {
-                        sB.nextSuperBlock = getEmptyBlock();
+	                	// Write the new blockNum in the inodeTable Map
+        	        	if (tableOffset == sB.iTableBlocksNum) {
+                	    		// If there is space in the block
+                    			if (freeSpaces > 0) {
+						//go to end of inodeTable
+						move = overflow_block*sB.blockSize + (remainingblockSize - freeSpaces);
+                        			CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+        	            		} else {
+						// If current block has an overflow
+						if(overflow_next != -1)
+						{
+							overflow_block = overflow_next;
+							move = overflow_block*sB.blockSize;
+        	                			CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+							sum = 0;
+        		                		while(sum < sizeof(int))
+                		        		{
+                        					CALL(read(fileDesc,(&overflow_next)+sum,sizeof(int)),-1,"Error reading from cfs file: ",2,n);
+                            					sum += n;
+                        				}
+						}
+	                    			// Else allocate a new block for the cfs metadata
+						else
+						{
+							overflow_block = (int) getEmptyBlock();
+	                	        		move = overflow_block*sB.blockSize;
 
-                        // Initialize to -1 the new pointer of the superBlock
-                        CALL(lseek(fileDesc,sB.nextSuperBlock*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	                        			// Initialize to -1 the new pointer of the superBlock
+        	                			CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 
-                        next_block = -1;
-                        sum = 0;
-                        while(sum < sizeof(int))
-                        {
-                            CALL(write(fileDesc,&next_block,sizeof(int)),-1,"Error writing from cfs file: ",2,n);
-                            sum += n;
-                        }
-                    }
+	                        			overflow_next = -1;
+		                        		sum = 0;
+        		                		while(sum < sizeof(int))
+                		        		{
+                        					CALL(write(fileDesc,(&overflow_next)+sum,sizeof(int)),-1,"Error writing in cfs file: ",3,n);
+                            					sum += n;
+                        				}
+		                    		}
 
-                    // Write the blockNum of the new inode Block
-                    sum = 0;
-                    while(sum < sizeof(int))
-                    {
-                        CALL(write(fileDesc,&new_blockNum,sizeof(int)),-1,"Error writing from cfs file: ",2,n);
-                        sum += n;
-                    }
-                    sB.iTableBlocksNum++;
-                }
-            }
+						freeSpaces = remainingblockSize;
+					}
 
-        }
-    }
-    // Write the holeList on the file
-    unsigned int hole;
-    CALL(lseek(fileDesc,sizeof(superBlock) + sB.iTableBlocksNum*sizeof(int),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-    for (int i=0; i<sB.ListSize;i++) {
-        hole = pop(holes);
-        if (sizeof(superBlock) + sB.iTableBlocksNum*sizeof(int)+i*sizeof(int) >= sB.blockSize) {
-            sB.nextSuperBlock = getEmptyBlock();
-            CALL(lseek(fileDesc,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+                    			// Write the blockNum of the new inode Block
+                    			sum = 0;
+                    			while(sum < sizeof(int))
+                    			{
+                        			CALL(write(fileDesc,(&new_blockNum)+sum,sizeof(int)),-1,"Error writing from cfs file: ",2,n);
+                        			sum += n;
+                    			}
+                    			sB.iTableBlocksNum++;
+					freeSpaces -= sizeof(unsigned int);
+                		}
 
-            CALL(lseek(fileDesc,sB.nextSuperBlock*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+        	        	tableOffset++;
+			}
+        	}
+	}
+    	// Write the holeList on the file
+    	unsigned int	hole;
 
-            next_block = -1;
-            sum = 0;
-            while(sum < sizeof(int))
-            {
-                CALL(write(fileDesc,&next_block,sizeof(int)),-1,"Error writing from cfs file: ",2,n);
-                sum += n;
-            }
-        }
+	//as long as List is not empty, find and go to the right block to write the list
+    	for (int i=0; i<sB.ListSize;i++) {
+        	hole = pop(holes);
+		//if there is space in current block
+        	if (freeSpaces > 0) {
+			move = overflow_block*sB.blockSize + (sB.blockSize - freeSpaces);
+    			CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		} else {
+			//if current block already has an overflow
+			if(overflow_next != -1)
+			{
+				overflow_block = overflow_next;
+				move = overflow_block*sB.blockSize;
+            			CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				sum = 0;
+				while(sum < sizeof(int))
+				{
+					CALL(write(fileDesc,(&overflow_next)+sum,sizeof(int)),-1,"Error writing in cfs file: ",3,n);
+					sum += n;
+				}
+			}
+			//if an empty block is needed
+			else
+			{
+				overflow_block = getEmptyBlock();
+				move = overflow_block*sB.blockSize;
+	            		CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 
-        sum = 0;
-        while(sum < sizeof(int))
-        {
-            CALL(write(fileDesc,&hole,sizeof(int)),-1,"Error writing from cfs file: ",2,n);
-            sum += n;
-        }
-    }
+	            		overflow_next = -1;
+            			sum = 0;
+            			while(sum < sizeof(int))
+            			{
+                			CALL(write(fileDesc,(&overflow_next)+sum,sizeof(int)),-1,"Error writing from cfs file: ",2,n);
+                			sum += n;
+            			}
+			}
 
-    // Write superBlock struct on the file
+			freeSpaces = remainingblockSize;
+        	}
+		//write a list node (fileptr is on the right spot)
+        	sum = 0;
+        	while(sum < sizeof(unsigned int))
+        	{
+        		CALL(write(fileDesc,(&hole)+sum,sizeof(unsigned int)),-1,"Error writing from cfs file: ",2,n);
+            		sum += n;
+        	}
+
+		freeSpaces -= sizeof(unsigned int);
+    	}
+
+	// Write superBlock struct on the file
 	CALL(lseek(fileDesc,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 	while(sum < sizeof(superBlock))
 	{
@@ -228,6 +303,6 @@ unsigned int getEmptyBlock()
         return new_blockNum;
     } else {
         sB.blockCounter++;
-        return sB.blockCounter+1;
+        return sB.blockCounter;
     }
 }

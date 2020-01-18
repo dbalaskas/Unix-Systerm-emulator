@@ -33,7 +33,7 @@ int main(void) {
 			"13. cfs_export <SOURCES> ... <DIRECTORY>\n"
 			"14. cfs_create <OPTIONS> <FILE>\n"
 			"15. cfs_man <COMMAND>\n"
-            "16. cfs_close\n"
+		        "16. cfs_close\n"
 			"17. cfs_exit\n\n");
 
 		CALL(fgets(line,sizeof(line),stdin),NULL,NULL,6,ignore);
@@ -226,31 +226,33 @@ int main(void) {
 				}
 
 				fileDesc = cfs_create(filename,bSize,filenameSize,maxFSize,maxDirFileNum);
-				printf("Cfs file %s created.\n",filename);
+				if(fileDesc == -1)
+					printf("Input error, block size is too small. Please try again.\n");
+				else
+					printf("Cfs file %s created.\n",filename);
+
 				free(filename);
 			}
 		}
 		else if(!strcmp(command,"cfs_close"))
 		{
-            if (cfs_close(fileDesc, open_cfs) == true) {
-                open_cfs = false;
-                // printf("cfs file: %s has just been closed.\n", fileName);
-                printf("cfs file is closed.\n");
-            }
-            else
-            {
-                printf("There is no cfs file opened.\n");
-            }
-            
+			if (cfs_close(fileDesc, open_cfs) == true) {
+				open_cfs = false;
+				// printf("cfs file: %s has just been closed.\n", fileName);
+				printf("cfs file is closed.\n");
+			}
+			else{
+				printf("There is no cfs file opened.\n");
+			}
 		}
 		else if(!strcmp(command,"cfs_man"))
 		{
 		}
-        else if(!strcmp(command,"cfs_exit"))
+		else if(!strcmp(command,"cfs_exit"))
 		{
 			cfs_close(fileDesc,open_cfs);
-            printf("End of Program.\n");
-            return 0;
+        		printf("End of Program.\n");
+			return 0;
 		}
 		else
 			printf("Command not found, please try again.\n");

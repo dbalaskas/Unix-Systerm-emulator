@@ -14,13 +14,13 @@ typedef struct superblock {
 	int maxFilesPerDir;
 	int maxDatablockNum;
 	// int metadataSize;
-    int metadataBlocksNum;
+   	int metadataBlocksNum;
 	int root;
 	int blockCounter;
 	int nodeidCounter;
 	int ListSize;
-    int iTableBlocksNum;
-    int iTableCounter;
+    	int iTableBlocksNum;
+    	int iTableCounter;
 } superBlock;
 
 // typedef struct {
