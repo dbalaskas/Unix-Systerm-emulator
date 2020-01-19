@@ -232,6 +232,7 @@ void update_superBlock(int fileDesc)
 
 	// Write superBlock struct on the file
 	CALL(lseek(fileDesc,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	sum = 0;
 	while(sum < sizeof(superBlock))
 	{
 		CALL(write(fileDesc,(&sB)+sum,sizeof(superBlock)),-1,"Error writing in cfs file: ",3,n);
