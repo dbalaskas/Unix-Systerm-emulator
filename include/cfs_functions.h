@@ -20,6 +20,24 @@ if(returnVal == error)					\
 	exit(errNum);					\
 }
 
+#define SAFE_READ(fd,ptr,ptr_values,ptr_size,size,sum,n,plus)			\
+sum = 0;									\
+while(sum < size)								\
+{										\
+	plus = (ptr_values + sum) / ptr_size;					\
+	CALL(read(fd,ptr+plus,size),-1,"Error reading from cfs file: ",2,n);	\
+	sum += n;								\
+}
+
+#define SAFE_WRITE(fd,ptr,ptr_values,ptr_size,size,sum,n,plus)			\
+sum = 0;									\
+while(sum < size)								\
+{										\
+	plus = (ptr_values + sum) / ptr_size;					\
+	CALL(write(fd,ptr+plus,size),-1,"Error writing in cfs file: ",3,n);	\
+	sum += n;								\
+}
+
 void update_superBlock(int);
 unsigned int getLocation(int,int,int);
 unsigned int traverse_cfs(int,char*,unsigned int);

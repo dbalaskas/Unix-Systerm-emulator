@@ -26,8 +26,9 @@
 
 int cfs_workwith(char *filename,bool open_cfs)
 {
-	int             fd = -1, ignore = 0, n, sum = 0;
-	int		current_iblock[sB.metadataBlocksNum], offset = 0, listOffset;
+	int             fd = -1, ignore = 0, ptr_values, sum, n, plus;
+	int		offset = 0, listOffset;
+	unsigned int	current_iblock[sB.metadataBlocksNum];
 
 	if(open_cfs == true)
 	{
@@ -37,11 +38,15 @@ int cfs_workwith(char *filename,bool open_cfs)
 	{
 		CALL(open(filename, O_RDWR),-1,"Error opening file for cfs: ",2,fd);
 		CALL(lseek(fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-        	while(sum < sizeof(superBlock))
-		{
-			CALL(read(fd,(&sB)+sum,sizeof(superBlock)),-1,"Error reading from cfs file: ",2,n);
-			sum += n;
-		}
+//		sum = 0;
+//        	while(sum < sizeof(superBlock))
+//		{
+//			plus = sum / sizeof(superBlock);
+//			CALL(read(fd,(&sB)+plus,sizeof(superBlock)),-1,"Error reading from cfs file: ",2,n);
+//			sum += n;
+//		}
+		ptr_values = 0;
+		SAFE_READ(fd,&sB,ptr_values,sizeof(superBlock),sizeof(superBlock),sum,n,plus);
 
 		CALL(lseek(fd,(sB.nextSuperBlock*sB.blockSize)+sizeof(int),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 		//go to nextSuperBlock (with iTable and List info), after the overflow int
@@ -56,24 +61,29 @@ int cfs_workwith(char *filename,bool open_cfs)
         
 	        for(int i=0; i<sB.nodeidCounter; i++)
 	        {
-			sum = 0;
-	            	while(sum < sB.metadataBlocksNum*sizeof(unsigned int))
-			{
-                		CALL(read(fd,current_iblock+sum,sB.metadataBlocksNum*sizeof(unsigned int)),-1,"Error reading from cfs file: ",2,n);
-	                	sum += n;
-	            	}
+//			sum = 0;
+//	            	while(sum < sB.metadataBlocksNum*sizeof(unsigned int))
+//			{
+//				plus = sum / sizeof(unsigned int);
+  //              		CALL(read(fd,current_iblock+plus,sB.metadataBlocksNum*sizeof(unsigned int)),-1,"Error reading from cfs file: ",2,n);
+//	                	sum += n;
+//	            	}
+			ptr_values = 0;
+			SAFE_READ(fd,current_iblock,ptr_values,sizeof(unsigned int),sB.metadataBlocksNum*sizeof(unsigned int),sum,n,plus);
+
 			remainingSize = size-sizeof(bool);
             		for(int j=0; j<sB.metadataBlocksNum; j++)
 	            	{
         	        	CALL(lseek(fd,current_iblock[j]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 
                 		size_to_read = (remainingSize > sB.blockSize) ? sB.blockSize : remainingSize;
-                		sum = 0;
-	                	while(sum < size_to_read)
-        	        	{
-                	    		CALL(read(fd,buffer+j*sB.blockSize+sum,size_to_read),-1,"Error reading from cfs file: ",2,n);
-                    			sum += n;
-	                	}
+//                		sum = 0;
+//	                	while(sum < size_to_read)
+//        	        	{
+//                	    		CALL(read(fd,buffer+j*sB.blockSize+sum,size_to_read),-1,"Error reading from cfs file: ",2,n);
+//                    			sum += n;
+//	                	}
+				SAFE_READ(fd,buffer,j*sB.blockSize,sizeof(char),size_to_read,sum,n,plus);
 
         	        	remainingSize -= size_to_read;
             		}
@@ -130,12 +140,16 @@ int cfs_workwith(char *filename,bool open_cfs)
 		{
 			CALL(lseek(fd,overflow_block*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 			overflow_prev = overflow_block;
-			sum = 0;
-			while(sum < sizeof(int))								//read overflow blocknum
-			{
-				CALL(read(fd,(&overflow_block)+sum,sizeof(int)),-1,"Error reading from cfs file: ",2,n);
-				sum += n;
-			}
+//			sum = 0;
+//			while(sum < sizeof(int))								//read overflow blocknum
+//			{
+//				plus = sum / sizeof(int);
+//				CALL(read(fd,(&overflow_block)+plus,sizeof(int)),-1,"Error reading from cfs file: ",2,n);
+//				sum += n;
+//			}
+			ptr_values = 0;
+			SAFE_READ(fd,&overflow_block,ptr_values,sizeof(int),sizeof(int),sum,n,plus);
+
 			if((difference > remainingblockSize) || (difference == remainingblockSize && sB.ListSize > 0))//if there is another overflow block
 				difference -= remainingblockSize;
 /*			else if(difference == sB.blockSize && sB.ListSize == 0)		//if inodeTable ends at the end of the block and there is no List yet
@@ -191,12 +205,15 @@ int cfs_workwith(char *filename,bool open_cfs)
 					overflow_block = overflow_next;
 					listOffset = overflow_block*sB.blockSize;
 	            			CALL(lseek(fd,listOffset,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-					sum = 0;
-					while(sum < sizeof(int))
-					{
-						CALL(write(fd,(&overflow_next)+sum,sizeof(int)),-1,"Error writing in cfs file: ",3,n);
-						sum += n;
-					}
+//					sum = 0;
+//					while(sum < sizeof(int))
+//					{
+//						plus = sum / sizeof(int);
+//						CALL(write(fd,(&overflow_next)+plus,sizeof(int)),-1,"Error writing in cfs file: ",3,n);
+//						sum += n;
+//					}
+					ptr_values = 0;
+					SAFE_WRITE(fd,&overflow_next,ptr_values,sizeof(int),sizeof(int),sum,n,plus);
 				}
 				//if an empty block is needed
 				else
@@ -206,23 +223,30 @@ int cfs_workwith(char *filename,bool open_cfs)
 		            		CALL(lseek(fd,listOffset,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 
 		            		overflow_next = -1;
-            				sum = 0;
-            				while(sum < sizeof(int))
-            				{
-                				CALL(write(fd,(&overflow_next)+sum,sizeof(int)),-1,"Error writing from cfs file: ",2,n);
-	                			sum += n;
-        	    			}
+//            				sum = 0;
+//            				while(sum < sizeof(int))
+//            				{
+//						plus = sum / sizeof(int);
+//                				CALL(write(fd,(&overflow_next)+plus,sizeof(int)),-1,"Error writing from cfs file: ",2,n);
+//	                			sum += n;
+//        	    			}
+					ptr_values = 0;
+					SAFE_WRITE(fd,&overflow_next,ptr_values,sizeof(int),sizeof(int),sum,n,plus);
 				}
 
 				freeSpaces = remainingblockSize;
 			}
 			//read a list node (fileptr is on the right spot)
-			sum = 0;
-        		while(sum < sizeof(unsigned int))
-            		{
-                		CALL(read(fd,(&blockNum)+sum,sizeof(unsigned int)),-1,"Error reading from cfs file: ",2,n);
-                		sum += n;
-            		}
+//			sum = 0;
+// 	      		while(sum < sizeof(unsigned int))
+//            		{
+//				plus = sum / sizeof(unsigned int);
+//                		CALL(read(fd,(&blockNum)+plus,sizeof(unsigned int)),-1,"Error reading from cfs file: ",2,n);
+//                		sum += n;
+//            		}
+			ptr_values = 0;
+			SAFE_READ(fd,&blockNum,ptr_values,sizeof(unsigned int),sizeof(unsigned int),sum,n,plus);
+
             		addNode(holes, blockNum);
 
 			freeSpaces -= sizeof(unsigned int);
@@ -234,15 +258,15 @@ int cfs_workwith(char *filename,bool open_cfs)
 
 bool cfs_touch(int fd,char *filename,touch_mode mode)
 {
-	int	ignore = 0, move;
+	int	ignore = 0, ptr_values, sum, n, plus, move;
 	bool	touched;
 
 	CALL(lseek(fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 
 	if(mode == CRE)
 	{
-		int		n, sum = 0, i;
-        unsigned int blocknum, parent_blocknum;
+		int		i;
+        	unsigned int	blocknum, parent_blocknum;
 		char		*split, *temp, *parent_name = (char*)malloc((sB.filenameSize)*sizeof(char));
 		time_t		curr_time;
 		MDS		metadata, parent_mds;
@@ -274,18 +298,27 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 		}
 		move = ((sB.blockSize)*(parent_blocknum)) + sB.filenameSize;
 		CALL(lseek(fd,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-		while(sum < sizeof(MDS))
-		{
-			CALL(read(fd,(&parent_mds)+sum,sizeof(MDS)),-1,"Error reading from cfs file: ",2,n);
-			sum += n;
-		}
+//		sum = 0;
+//		while(sum < sizeof(MDS))
+//		{
+//			plus = sum / sizeof(MDS);
+//			CALL(read(fd,(&parent_mds)+plus,sizeof(MDS)),-1,"Error reading from cfs file: ",2,n);
+//			sum += n;
+//		}
+		ptr_values = 0;
+		SAFE_READ(fd,&parent_mds,ptr_values,sizeof(MDS),sizeof(MDS),sum,n,plus);
+
 		parent_data.datablocks = (unsigned int*)malloc((sB.maxDatablockNum)*sizeof(unsigned int));
-		sum = 0;
-		while(sum < (sB.maxDatablockNum*sizeof(unsigned int)))
-		{
-			CALL(read(fd,parent_data.datablocks,sB.maxDatablockNum*sizeof(unsigned int)),-1,"Error reading from cfs file: ",2,n);
-			sum += n;
-		}
+//		sum = 0;
+//		while(sum < (sB.maxDatablockNum*sizeof(unsigned int)))
+//		{
+//			plus = sum / sizeof(unsigned int);
+//			CALL(read(fd,parent_data.datablocks+plus,sB.maxDatablockNum*sizeof(unsigned int)),-1,"Error reading from cfs file: ",2,n);
+//			sum += n;
+//		}
+		ptr_values = 0;
+		SAFE_READ(fd,parent_data.datablocks,ptr_values,sizeof(unsigned int),sB.maxDatablockNum*sizeof(unsigned int),sum,n,plus);
+
 		for(i=0; i<sB.maxDatablockNum; i++)
 			if(parent_data.datablocks[i] == 0)
 				break;
@@ -298,12 +331,15 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 		}
 
 		blocknum = getLocation(fd,0,SEEK_END);							//will move ptr to the end of file
-		sum = 0;
-		while(sum < (strlen(filename)+1))								//new file's name
-		{
-			CALL(write(fd,filename+sum,strlen(filename)+1),-1,"Error writing in cfs file: ",3,n);
-			sum += n;
-		}
+//		sum = 0;
+//		while(sum < (strlen(filename)+1))								//new file's name
+//		{
+//			CALL(write(fd,filename+sum,strlen(filename)+1),-1,"Error writing in cfs file: ",3,n);
+//			sum += n;
+//		}
+		ptr_values = 0;
+		SAFE_WRITE(fd,filename,ptr_values,sizeof(char),strlen(filename)+1,sum,n,plus);
+
 		move = sB.filenameSize - (strlen(filename)+1);
 		CALL(lseek(fd,move,SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
 		sB.nodeidCounter++;
@@ -315,33 +351,40 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 		metadata.creation_time = curr_time;
 		metadata.access_time = curr_time;
 		metadata.modification_time = curr_time;
-		sum = 0;
-		while(sum < sizeof(MDS))								//new file's metadata
-		{
-			CALL(write(fd,(&metadata)+sum,sizeof(MDS)),-1,"Error writing in cfs file: ",3,n);
-			sum += n;
-		}
+//		sum = 0;
+//		while(sum < sizeof(MDS))								//new file's metadata
+//		{
+//			CALL(write(fd,(&metadata)+sum,sizeof(MDS)),-1,"Error writing in cfs file: ",3,n);
+//			sum += n;
+//		}
+		ptr_values = 0;
+		SAFE_WRITE(fd,&metadata,ptr_values,sizeof(MDS),sizeof(MDS),sum,n,plus);
+
 		data.datablocks = (unsigned int*)malloc(sB.maxDatablockNum*sizeof(unsigned int));
 		for(int j=0; j<sB.maxDatablockNum; j++)							//new file's data
 		{
 			data.datablocks[j] = 0;
-			sum = 0;
-			while(sum < sizeof(unsigned int))
-			{
-				CALL(write(fd,&(data.datablocks[j])+sum,sizeof(unsigned int)),-1,"Error writing in cfs file: ",3,n);
-				sum += n;
-			}
+//			sum = 0;
+//			while(sum < sizeof(unsigned int))
+//			{
+//				CALL(write(fd,(&(data.datablocks[j]))+sum,sizeof(unsigned int)),-1,"Error writing in cfs file: ",3,n);
+//				sum += n;
+//			}
+			ptr_values = 0;
+			SAFE_WRITE(fd,&(data.datablocks[j]),ptr_values,sizeof(unsigned int),sizeof(unsigned int),sum,n,plus);
 		}
 
 		parent_data.datablocks[i] = blocknum;
 		move = ((sB.blockSize)*(parent_blocknum)) + sB.filenameSize + sizeof(MDS) + (i*sizeof(unsigned int));
 		CALL(lseek(fd,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-		sum = 0;
-		while(sum < sizeof(unsigned int))								//update parent's data
-		{
-			CALL(write(fd,&(parent_data.datablocks[i])+sum,sizeof(unsigned int)),-1,"Error writing in cfs file: ",3,n);
-			sum += n;
-		}
+//		sum = 0;
+//		while(sum < sizeof(unsigned int))								//update parent's data
+//		{
+//			CALL(write(fd,(&(parent_data.datablocks[i]))+sum,sizeof(unsigned int)),-1,"Error writing in cfs file: ",3,n);
+//			sum += n;
+//		}
+		ptr_values = 0;
+		SAFE_WRITE(fd,&(parent_data.datablocks[i]),ptr_values,sizeof(unsigned int),sizeof(unsigned int),sum,n,plus);
 
 		free(parent_name);
 		free(parent_data.datablocks);
@@ -350,8 +393,7 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 	}
 	else
 	{
-		int		n, sum = 0;
-        unsigned int blocknum;
+	        unsigned int	blocknum;
 		time_t		curr_time;
 		MDS		metadata;
 
@@ -365,23 +407,29 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 		{
 			move = ((blocknum)*(sB.blockSize)) + sB.filenameSize;
 			CALL(lseek(fd,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-			while(sum < sizeof(MDS))
-			{
-				CALL(read(fd,(&metadata)+sum,sizeof(MDS)),-1,"Error reading from cfs file: ",2,n);
-				sum += n;
-			}
+//			while(sum < sizeof(MDS))
+//			{
+//				CALL(read(fd,(&metadata)+sum,sizeof(MDS)),-1,"Error reading from cfs file: ",2,n);
+//				sum += n;
+//			}
+			ptr_values = 0;
+			SAFE_READ(fd,&metadata,ptr_values,sizeof(MDS),sizeof(MDS),sum,n,plus);
+
 			curr_time = time(NULL);
 			if(mode == ACC)
 				metadata.access_time = curr_time;
 			else if(mode == MOD)
 				metadata.modification_time = curr_time;
 
-			sum = 0;
-			while(sum < sizeof(MDS))
-			{
-				CALL(write(fd,(&metadata)+sum,sizeof(MDS)),-1,"Error writing in cfs file: ",3,n);
-				sum += n;
-			}
+//			sum = 0;
+//			while(sum < sizeof(MDS))
+//			{
+//				CALL(write(fd,(&metadata)+sum,sizeof(MDS)),-1,"Error writing in cfs file: ",3,n);
+//				sum += n;
+//			}
+			ptr_values = 0;
+			SAFE_WRITE(fd,&metadata,ptr_values,sizeof(MDS),sizeof(MDS),sum,n,plus);
+
 			touched = true;
 		}
 	}
@@ -391,7 +439,7 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 
 int cfs_create(char *filename,int bSize,int nameSize,int maxFSize,int maxDirFileNum)
 {
-	int		fd = 0, ignore = 0, n, sum = 0;
+	int		fd = 0, ignore = 0, ptr_values, sum, n, plus;
 	time_t		current_time;
 	MDS		metadata;
 	Datastream	data;
@@ -419,11 +467,14 @@ int cfs_create(char *filename,int bSize,int nameSize,int maxFSize,int maxDirFile
 	sB.nextSuperBlock = (int)getEmptyBlock();
 	CALL(lseek(fd,sB.nextSuperBlock*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 	int	overflow_block = -1;
-	while(sum < sizeof(int))
-	{
-		CALL(write(fd,(&overflow_block)+sum,sizeof(int)),-1,"Error writing in cfs file: ",3,n);	//overflow blocknum
-		sum += n;
-	}
+//	while(sum < sizeof(int))
+//	{
+//		CALL(write(fd,(&overflow_block)+sum,sizeof(int)),-1,"Error writing in cfs file: ",3,n);	//overflow blocknum
+//		sum += n;
+//	}
+	ptr_values = 0;
+	SAFE_WRITE(fd,&overflow_block,ptr_values,sizeof(int),sizeof(int),sum,n,plus);
+
 ///////////////CREATE ENTITY ///////////////////////
 	unsigned int	blocknums[sB.metadataBlocksNum];
 	for(int i=0; i<sB.metadataBlocksNum; i++)
@@ -431,21 +482,25 @@ int cfs_create(char *filename,int bSize,int nameSize,int maxFSize,int maxDirFile
 		blocknums[i] = getEmptyBlock();								//root's metadata blocknums
 		if(i == 0)
 			sB.root = blocknums[0];
-		sum = 0;
-		while(sum < sizeof(unsigned int))
-		{
-			CALL(write(fd,(&blocknums[i])+sum,sizeof(unsigned int)),-1,"Error writing in cfs file: ",3,n);
-			sum += n;
-		}
+//		sum = 0;
+//		while(sum < sizeof(unsigned int))
+//		{
+//			CALL(write(fd,(&blocknums[i])+sum,sizeof(unsigned int)),-1,"Error writing in cfs file: ",3,n);
+//			sum += n;
+//		}
+		ptr_values = 0;
+		SAFE_WRITE(fd,&blocknums[i],ptr_values,sizeof(unsigned int),sizeof(unsigned int),sum,n,plus);
 	}
 	
 	CALL(lseek(fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-	sum = 0;
-	while(sum < sizeof(superBlock))									//write superBlock
-	{
-		CALL(write(fd,(&sB)+sum,sizeof(superBlock)),-1,"Error writing in cfs file: ",3,n);
-		sum += n;
-	}
+//	sum = 0;
+//	while(sum < sizeof(superBlock))									//write superBlock
+//	{
+//		CALL(write(fd,(&sB)+sum,sizeof(superBlock)),-1,"Error writing in cfs file: ",3,n);
+//		sum += n;
+//	}
+	ptr_values = 0;
+	SAFE_WRITE(fd,&sB,ptr_values,sizeof(superBlock),sizeof(superBlock),sum,n,plus);
 
 	int	current = 0;
 //	int	size = sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int);
@@ -471,12 +526,14 @@ int cfs_create(char *filename,int bSize,int nameSize,int maxFSize,int maxDirFile
 
 	while(remainingSize > 0)									//write root's metadata
 	{
-		sum = 0;
-		while(sum < size_to_write)
-		{
-			CALL(write(fd,(&metadata)+writtenSize+sum,size_to_write),-1,"Error writing in cfs file: ",3,n);
-			sum += n;
-		}
+//		sum = 0;
+//		while(sum < size_to_write)
+//		{
+//			CALL(write(fd,(&metadata)+writtenSize+sum,size_to_write),-1,"Error writing in cfs file: ",3,n);
+//			sum += n;
+//		}
+		SAFE_WRITE(fd,&metadata,writtenSize,sizeof(MDS),size_to_write,sum,n,plus);
+
 		remainingSize -= size_to_write;
 		remainingblockSize -= size_to_write;
 		writtenSize += size_to_write;
@@ -499,12 +556,14 @@ int cfs_create(char *filename,int bSize,int nameSize,int maxFSize,int maxDirFile
 
 	while(remainingSize > 0)									//write root's data
 	{
-		sum = 0;
-		while(sum < size_to_write)
-		{
-			CALL(write(fd,(data.datablocks)+(writtenSize/sizeof(unsigned int))+sum,size_to_write),-1,"Error writing in cfs file: ",3,n);
-			sum += n;
-		}
+//		sum = 0;
+//		while(sum < size_to_write)
+//		{
+//			CALL(write(fd,(data.datablocks)+(writtenSize/sizeof(unsigned int))+sum,size_to_write),-1,"Error writing in cfs file: ",3,n);
+//			sum += n;
+//		}
+		SAFE_WRITE(fd,data.datablocks,writtenSize,sizeof(unsigned int),size_to_write,sum,n,plus);
+
 		remainingSize -= size_to_write;
 		remainingblockSize -= size_to_write;
 		writtenSize += size_to_write;
