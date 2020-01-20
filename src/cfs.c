@@ -76,8 +76,8 @@ int main(void) {
 				{
 					touch_mode	mode;
 
-					while(option != NULL)
-					{
+//					while(option != NULL)
+//					{
 						if(!strcmp(option,"-a"))
 							mode = ACC;
 						else if(!strcmp(option,"-m"))
@@ -99,7 +99,9 @@ int main(void) {
 						}
 
 						option = strtok(NULL," ");
-					}
+						if(option != NULL)
+							printf("%s\n",option);
+//					}
 				}
 			}
 		}

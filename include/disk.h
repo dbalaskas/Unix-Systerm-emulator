@@ -31,5 +31,7 @@ typedef struct superblock {
 
 
 extern char *inodeTable;
+extern int inodeSize;
 extern superBlock sB;
 extern List *holes;
+extern unsigned int cfs_current_nodeid;

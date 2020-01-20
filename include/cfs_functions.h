@@ -39,7 +39,7 @@ while(sum < size)								\
 }
 
 void update_superBlock(int);
-unsigned int getLocation(int,int,int);
-unsigned int traverse_cfs(int,char*,unsigned int);
+unsigned int getTableSpace();
+int traverse_cfs(char*,unsigned int);
 unsigned int getEmptyBlock();
 

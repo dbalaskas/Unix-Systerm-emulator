@@ -5,22 +5,17 @@
 #include <fcntl.h>				//creat, open
 #include "../include/cfs_functions.h"
 
-superBlock sB;
-char *inodeTable;
-List *holes;
+superBlock	sB;
+char		*inodeTable;
+int		inodeSize;
+List		*holes;
+unsigned int	cfs_current_nodeid;
 
 void update_superBlock(int fileDesc)
 {
 	int             ignore = 0, ptr_values, sum, n, plus, tableOffset = 0;
 	unsigned int    new_blockNum, iblock[sB.iTableBlocksNum];
 
-	// CALL(lseek(fileDesc,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-	// while(sum < sizeof(superBlock))
-	// {
-	// 	CALL(write(fileDesc,(&sB)+sum,sizeof(superBlock)),-1,"Error writing in cfs file: ",3,n);
-	// 	sum += n;
-	// }
-    
 	// Write the inodeTable on the file
 	int	difference = sB.iTableBlocksNum*sizeof(unsigned int);
 	int	overflow_block = sB.nextSuperBlock, overflow_prev, overflow_next;
@@ -31,22 +26,10 @@ void update_superBlock(int fileDesc)
 	{
 		CALL(lseek(fileDesc,overflow_block*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 		overflow_prev = overflow_block;
-//		sum = 0;
-//		while(sum < sizeof(int))								//read overflow blocknum
-//		{
-//			CALL(read(fileDesc,(&overflow_block)+sum,sizeof(int)),-1,"Error reading from cfs file: ",2,n);
-//			sum += n;
-//		}
 		ptr_values = 0;
 		SAFE_READ(fileDesc,&overflow_block,ptr_values,sizeof(int),sizeof(int),sum,n,plus);
 
 		size_to_read = (remainingblockSize < difference) ? remainingblockSize : difference;
-//		sum = 0;
-//		while(sum < size_to_read)
-//		{
-//			CALL(read(fileDesc,iblock+readSize+sum,size_to_read),-1,"Error reading from cfs file: ",2,n);
-//	        	sum += n;
-//		}
 		SAFE_READ(fileDesc,iblock,readSize,sizeof(unsigned int),size_to_read,sum,n,plus);
 
 		readSize += size_to_read;
@@ -58,16 +41,16 @@ void update_superBlock(int fileDesc)
 		}
 	}
 
-	int size = sizeof(bool) + sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int);
+//	int size = sizeof(bool) + sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int);
 	int size_to_write;
 	int writtenSize, remainingSize;
 	int freeSpaces, move;
 	// For each node of the table
 	for(int j=0; j<sB.iTableCounter; j++) {
         // If it has content (flag==true)
-        	if (*(inodeTable+j*size) == true) {
+        	if (*(inodeTable+j*inodeSize) == true) {
 
-	        	remainingSize = size-sizeof(bool);
+	        	remainingSize = inodeSize-sizeof(bool);
             // if((sB.iTableBlocksNum-tableOffset)/sB.metadataBlocksNum >= 1)
             // if (sB.iTableBlocksNum-tableOffset > 0)
             // {
@@ -115,13 +98,7 @@ void update_superBlock(int fileDesc)
 
                 		// Write on the block (fileptr is on the right spot)
                 		size_to_write = (remainingSize > sB.blockSize) ? sB.blockSize : remainingSize;
-//	                	sum = 0;
-//        	        	while(sum < size_to_write)
-//                		{
-//                			CALL(write(fileDesc,inodeTable+j*size+sizeof(bool)+sum+writtenSize,size_to_write),-1,"Error writing from cfs file: ",2,n);
-//                    			sum += n;
-//	                	}
-				SAFE_WRITE(fileDesc,inodeTable,j*size+sizeof(bool)+writtenSize,sizeof(char),size_to_write,sum,n,plus);
+				SAFE_WRITE(fileDesc,inodeTable,j*inodeSize+sizeof(bool)+writtenSize,sizeof(char),size_to_write,sum,n,plus);
 
         	        	writtenSize += size_to_write;
                 		remainingSize -= size_to_write;
@@ -140,12 +117,6 @@ void update_superBlock(int fileDesc)
 							overflow_block = overflow_next;
 							move = overflow_block*sB.blockSize;
         	                			CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-//							sum = 0;
-//        		                		while(sum < sizeof(int))
-//                		        		{
-//                        					CALL(read(fileDesc,(&overflow_next)+sum,sizeof(int)),-1,"Error reading from cfs file: ",2,n);
-//                            					sum += n;
-//                        				}
 							ptr_values = 0;
 							SAFE_READ(fileDesc,&overflow_next,ptr_values,sizeof(int),sizeof(int),sum,n,plus);
 						}
@@ -159,12 +130,6 @@ void update_superBlock(int fileDesc)
         	                			CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 
 	                        			overflow_next = -1;
-//		                        		sum = 0;
-//        		                		while(sum < sizeof(int))
-//                		        		{
-//                        					CALL(write(fileDesc,(&overflow_next)+sum,sizeof(int)),-1,"Error writing in cfs file: ",3,n);
-//                            					sum += n;
-//                        				}
 							ptr_values = 0;
 							SAFE_WRITE(fileDesc,&overflow_next,ptr_values,sizeof(int),sizeof(int),sum,n,plus);
 		                    		}
@@ -173,12 +138,6 @@ void update_superBlock(int fileDesc)
 					}
 
                     			// Write the blockNum of the new inode Block
-//                    			sum = 0;
-//                    			while(sum < sizeof(unsigned int))
-//                    			{
-//                        			CALL(write(fileDesc,(&new_blockNum)+sum,sizeof(unsigned int)),-1,"Error writing from cfs file: ",2,n);
-//                        			sum += n;
-//                    			}
 					ptr_values = 0;
 					SAFE_WRITE(fileDesc,&new_blockNum,ptr_values,sizeof(unsigned int),sizeof(unsigned int),sum,n,plus);
 
@@ -207,12 +166,6 @@ void update_superBlock(int fileDesc)
 				overflow_block = overflow_next;
 				move = overflow_block*sB.blockSize;
             			CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-//				sum = 0;
-//				while(sum < sizeof(int))
-//				{
-//					CALL(write(fileDesc,(&overflow_next)+sum,sizeof(int)),-1,"Error writing in cfs file: ",3,n);
-//					sum += n;
-//				}
 				ptr_values = 0;
 				SAFE_WRITE(fileDesc,&overflow_next,ptr_values,sizeof(int),sizeof(int),sum,n,plus);
 			}
@@ -224,12 +177,6 @@ void update_superBlock(int fileDesc)
 	            		CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 
 	            		overflow_next = -1;
-//            			sum = 0;
-//           			while(sum < sizeof(int))
-//            			{
-//                			CALL(write(fileDesc,(&overflow_next)+sum,sizeof(int)),-1,"Error writing from cfs file: ",2,n);
-//                			sum += n;
-//            			}
 				ptr_values = 0;
 				SAFE_WRITE(fileDesc,&overflow_next,ptr_values,sizeof(int),sizeof(int),sum,n,plus);
 			}
@@ -237,12 +184,6 @@ void update_superBlock(int fileDesc)
 			freeSpaces = remainingblockSize;
         	}
 		//write a list node (fileptr is on the right spot)
-//        	sum = 0;
-//        	while(sum < sizeof(unsigned int))
-//        	{
-//        		CALL(write(fileDesc,(&hole)+sum,sizeof(unsigned int)),-1,"Error writing from cfs file: ",2,n);
-//            		sum += n;
-//        	}
 		ptr_values = 0;
 		SAFE_WRITE(fileDesc,&hole,ptr_values,sizeof(unsigned int),sizeof(unsigned int),sum,n,plus);
 
@@ -251,17 +192,11 @@ void update_superBlock(int fileDesc)
 
 	// Write superBlock struct on the file
 	CALL(lseek(fileDesc,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-//	sum = 0;
-//	while(sum < sizeof(superBlock))
-//	{
-//		CALL(write(fileDesc,(&sB)+sum,sizeof(superBlock)),-1,"Error writing in cfs file: ",3,n);
-//		sum += n;
-//	}
 	ptr_values = 0;
 	SAFE_READ(fileDesc,&sB,ptr_values,sizeof(superBlock),sizeof(superBlock),sum,n,plus);
 }
 
-unsigned int getLocation(int fileDesc,int move,int mode)
+unsigned int getTableSpace()
 {													//mode: SEEK_SET | SEEK_CUR | SEEK_END
 /*	int		bytes, blocknum;
 
@@ -270,11 +205,61 @@ unsigned int getLocation(int fileDesc,int move,int mode)
 
 	return blocknum;
 */
-	return 0;
+	bool	busy;
+	int	i;
+
+	for(i=0; i<sB.iTableCounter; i++)
+	{
+		busy = (bool) (inodeTable + i*inodeSize);
+		if(busy == false)
+			break;
+	}
+
+	return i;
 }
 
-unsigned int traverse_cfs(int fileDesc,char *filename,unsigned int start_bl)
+int traverse_cfs(char *filename,unsigned int start)
 {
+	int		offset, i;
+	char		*curr_name, *split, *curr_dir = (char*)malloc(sB.filenameSize*sizeof(char));
+	Datastream	data;
+
+	split = strtok(filename,"/");
+	if(split == NULL)
+	{
+		strcpy(curr_dir,"/");
+		split = curr_dir;
+	}
+
+	offset = start*inodeSize + sizeof(bool);
+
+	while(split != NULL)
+	{
+		split = strtok(NULL,"/");
+		if(split != NULL)
+		{
+			offset += sB.filenameSize + sizeof(MDS);
+			data.datablocks = (unsigned int*) (inodeTable + offset);
+			for(i=0; i<sB.maxDatablockNum; i++)
+			{
+				start = data.datablocks[i];
+				offset = start*inodeSize + sizeof(bool);
+				curr_name = inodeTable + offset;
+				if(!strcmp(split,curr_name))
+				{
+					split = NULL;
+					break;
+				}
+			}
+			if(i == sB.maxDatablockNum)
+				return -1;
+		}
+	}
+
+	free(curr_dir);
+
+	return (int) start;
+
 /*	int		sum = 0, n, ignore = 0;
 	char		*curr_name = (char*)malloc(sB.filenameSize*sizeof(char));
 
@@ -318,7 +303,6 @@ unsigned int traverse_cfs(int fileDesc,char *filename,unsigned int start_bl)
 		return blocknum;
 	}
 */
-	return 0;
 }
 
 unsigned int getEmptyBlock()
