@@ -11,8 +11,8 @@ int main(void) {
 	//scan
 
 	char	*ignore = NULL;
-	char	*command, line[60], *tmp, *option, *value;
-    // char    *fileName;
+	char	*command, *tmp, *option, *value;
+	char	line[60], name[FILENAME_SIZE];
 	int	fileDesc = -1;						//updated by cfs_create or cfs_workwith
 	bool	open_cfs = false, workwith_called = false;
 
@@ -76,8 +76,8 @@ int main(void) {
 				{
 					touch_mode	mode;
 
-//					while(option != NULL)
-//					{
+					while(option != NULL)
+					{
 						if(!strcmp(option,"-a"))
 							mode = ACC;
 						else if(!strcmp(option,"-m"))
@@ -93,7 +93,8 @@ int main(void) {
 						{
 							bool	touched;
 
-							touched = cfs_touch(fileDesc,option,mode);
+							strcpy(name,option);
+							touched = cfs_touch(fileDesc,name,mode);
 							if(touched)
 								printf("File %s touched in cfs.\n",option);
 						}
@@ -101,7 +102,7 @@ int main(void) {
 						option = strtok(NULL," ");
 						if(option != NULL)
 							printf("%s\n",option);
-//					}
+					}
 				}
 			}
 		}
@@ -253,7 +254,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_exit"))
 		{
 			cfs_close(fileDesc,open_cfs);
-        		printf("End of Program.\n");
+			printf("End of Program.\n");
 			return 0;
 		}
 		else

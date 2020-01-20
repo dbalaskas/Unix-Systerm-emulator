@@ -222,6 +222,7 @@ int traverse_cfs(char *filename,unsigned int start)
 {
 	int		offset, i;
 	char		*curr_name, *split, *curr_dir = (char*)malloc(sB.filenameSize*sizeof(char));
+	MDS		*metadata;
 	Datastream	data;
 
 	split = strtok(filename,"/");
@@ -238,6 +239,14 @@ int traverse_cfs(char *filename,unsigned int start)
 		split = strtok(NULL,"/");
 		if(split != NULL)
 		{
+			if(!strcmp(split,"."))
+				split = inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool);
+			else if(!strcmp(split,".."))
+			{
+				metadata = (MDS*) (inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+				split = inodeTable + (metadata->parent_nodeid)*inodeSize + sizeof(bool);
+			}
+
 			offset += sB.filenameSize + sizeof(MDS);
 			data.datablocks = (unsigned int*) (inodeTable + offset);
 			for(i=0; i<sB.maxDatablockNum; i++)

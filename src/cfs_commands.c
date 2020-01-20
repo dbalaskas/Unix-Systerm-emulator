@@ -51,7 +51,7 @@ int cfs_workwith(char *filename,bool open_cfs)
         	char buffer[inodeSize-sizeof(bool)];
 	        int remainingSize, size_to_read;
 	        int *nodeId;
-	        inodeTable = (char*)malloc(sB.iTableCounter*sizeof(char)*inodeSize);
+	        inodeTable = (char*)malloc(sB.iTableCounter*inodeSize);
 	        holes = NULL;
 	        int numOfiNode = 0;
         
@@ -230,7 +230,8 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 
 		unsigned int	start, new_nodeid;
 		int		parent_nodeid, i, offset;
-		char		*split, *temp, *parent_name = (char*)malloc((sB.filenameSize)*sizeof(char));
+		char		*split, *temp;
+	 	char		parent_name[sB.filenameSize], new_name[sB.filenameSize];// = (char*)malloc((sB.filenameSize)*sizeof(char));
 		time_t		curr_time;
 		MDS		*current_mds, *metadata;
 		Datastream	parent_data, data;
@@ -238,7 +239,7 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 		if(strlen(filename)+1 > sB.filenameSize)
 		{
 			printf("Input error, too long filename.\n");
-			free(parent_name);
+//			free(parent_name);
 			return false;
 		}
 
@@ -268,11 +269,15 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 		}
 
 		if(split != NULL)
+		{
 			temp = strtok(NULL,"/");
+			if(temp == NULL)
+				strcpy(new_name,split);
+		}
 		else
 		{
 			printf("Input error, %s is not a file.\n",filename);
-			free(parent_name);
+//			free(parent_name);
 			return false;
 		}
 
@@ -283,13 +288,15 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 			temp = strtok(NULL,"/");
 			if(temp != NULL)
 				strcat(parent_name,"/");
+			else
+				strcpy(new_name,split);
 		}
 
 		parent_nodeid = traverse_cfs(parent_name,start);							//find parent
 		if(parent_nodeid == -1)
 		{
 			printf("Error, could not find parent directory in cfs.\n");
-			free(parent_name);
+//			free(parent_name);
 			return false;
 		}
 		parent_data.datablocks = (unsigned int*)(inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
@@ -309,7 +316,7 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 		if(i == sB.maxDatablockNum)
 		{
 			printf("Not enough space in parent directory to create file %s.\n",filename);
-			free(parent_name);
+//			free(parent_name);
 //			free(parent_data.datablocks);
 			return false;
 		}
@@ -317,13 +324,16 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 		new_nodeid = getTableSpace();							//find an empty space in inodeTable
 		parent_data.datablocks[i] = new_nodeid;						//update parent's new child
 
+		sB.nodeidCounter++;
+		sB.iTableCounter++;
+		inodeTable = (char*)realloc(inodeTable,sB.iTableCounter*inodeSize);
 		offset = new_nodeid*inodeSize;
 		busy = true;
 		*(bool*) (inodeTable + offset) = busy;						//fill empty space with new file
-		printf("%d!\n",*(bool*)(inodeTable+offset));
+//		memcpy(inodeTable+offset,&busy,sizeof(bool));
 
 		offset += sizeof(bool);
-		strcpy(inodeTable + offset,filename);
+		strcpy(inodeTable + offset,new_name);
 
 		offset += sB.filenameSize;
 		metadata = (MDS*) (inodeTable + offset);
@@ -341,8 +351,6 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 		for(i=0; i<sB.maxDatablockNum; i++)
 			data.datablocks[i] = 0;
 
-		sB.nodeidCounter++;
-		sB.iTableCounter++;
 //		ptr_values = 0;
 //		SAFE_WRITE(fd,filename,ptr_values,sizeof(char),strlen(filename)+1,sum,n,plus);
 
@@ -375,7 +383,7 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 		ptr_values = 0;
 		SAFE_WRITE(fd,&(parent_data.datablocks[i]),ptr_values,sizeof(unsigned int),sizeof(unsigned int),sum,n,plus);
 */
-		free(parent_name);
+//		free(parent_name);
 //		free(parent_data.datablocks);
 //		free(data.datablocks);
 		touched = true;
