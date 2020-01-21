@@ -19,8 +19,10 @@
 14. cfs create <OPTIONS> <FILE>. Δημιουργία ενός cfs στο αρχείο <FILE>.
 */
 
-int cfs_workwith(char*,bool);
+int cfs_workwith(char*);
 bool cfs_touch(int,char*,touch_mode);
 int cfs_create(char*,int,int,int,int);
-bool cfs_close(int, bool);
+bool cfs_close(int);
+void cfs_pwd();
+void cfs_cd();
 

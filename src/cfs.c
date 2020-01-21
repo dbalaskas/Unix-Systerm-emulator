@@ -11,8 +11,8 @@ int main(void) {
 	//scan
 
 	char	*ignore = NULL;
-	char	*command, line[60], *tmp, *option, *value;
-    // char    *fileName;
+	char	*command, *tmp, *option, *value;
+	char	line[60], name[FILENAME_SIZE];
 	int	fileDesc = -1;						//updated by cfs_create or cfs_workwith
 	bool	open_cfs = false, workwith_called = false;
 
@@ -49,10 +49,14 @@ int main(void) {
 				printf("Input error, please give a filename.\n");
 			else
 			{
-				fileDesc = cfs_workwith(option, open_cfs);
-				open_cfs = true;
-				workwith_called = true;
-				printf("Working with cfs file %s...\n",option);
+				if (open_cfs != true) {
+					fileDesc = cfs_workwith(option);
+					open_cfs = true;
+					workwith_called = true;
+					printf("Working with cfs file %s...\n",option);
+				} else {
+        				printf("Error: a cfs file is already open. Close it if you want to open other cfs file.\n");
+				}
 			}
 		}
 		else if(!strcmp(command,"cfs_mkdir"))
@@ -93,12 +97,16 @@ int main(void) {
 						{
 							bool	touched;
 
-							touched = cfs_touch(fileDesc,option,mode);
+							strcpy(name,option);
+							touched = cfs_touch(fileDesc,name,mode);
 							if(touched)
 								printf("File %s touched in cfs.\n",option);
 						}
 
-						option = strtok(NULL," ");
+						if(option != NULL)
+							option = strtok(NULL," ");
+//						if(option != NULL)
+//							printf("%s\n",option);
 					}
 				}
 			}
@@ -236,9 +244,10 @@ int main(void) {
 		}
 		else if(!strcmp(command,"cfs_close"))
 		{
-			if (cfs_close(fileDesc, open_cfs) == true) {
+			if (open_cfs == true) {
+				cfs_close(fileDesc);
 				open_cfs = false;
-				// printf("cfs file: %s has just been closed.\n", fileName);
+				workwith_called = false;
 				printf("cfs file is closed.\n");
 			}
 			else{
@@ -250,8 +259,10 @@ int main(void) {
 		}
 		else if(!strcmp(command,"cfs_exit"))
 		{
-			cfs_close(fileDesc,open_cfs);
-        		printf("End of Program.\n");
+			if(open_cfs == true)
+				cfs_close(fileDesc);
+
+			printf("End of Program.\n");
 			return 0;
 		}
 		else
