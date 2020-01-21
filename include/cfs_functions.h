@@ -1,4 +1,4 @@
-/* FILE: cfs_functionss.h */
+/* FILE: cfs_functions.h */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,7 +39,7 @@ while(sum < size)								\
 }
 
 void update_superBlock(int);
-unsigned int getTableSpace();
-int traverse_cfs(char*,unsigned int);
-unsigned int getEmptyBlock();
+int getTableSpace();
+int traverse_cfs(char*,int);
+int getEmptyBlock();
 
