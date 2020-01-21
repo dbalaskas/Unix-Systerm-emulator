@@ -48,3 +48,6 @@ debug:
 	@echo "Debugging cfs..."
 	$(CXX) $(GDBFLAGS) $(SRCDIR)/cfs.c $(SRCDIR)/cfs_commands.c $(SRCDIR)/cfs_functions.c $(SRCDIR)/list.c -o $(BDIR)/cfs
 	gdb $(BDIR)/cfs
+run:
+	@echo "Executing cfs..."
+	./$(BDIR)/cfs
