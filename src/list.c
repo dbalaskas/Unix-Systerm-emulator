@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "../include/list.h"
 
-void addNode(List *list,unsigned int blockNum)
+void addNode(List *list,int blockNum)
 {
     if (list == NULL) {
         list = malloc(sizeof(List));
@@ -16,10 +16,10 @@ void addNode(List *list,unsigned int blockNum)
     }
 }
 
-unsigned int pop(List* list)
+int pop(List* list)
 {
     List *temp;
-    unsigned int result;
+    int result;
     if(list == NULL)
         return 0;
     temp = list;

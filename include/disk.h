@@ -5,6 +5,7 @@
 #define MAX_FILE_SIZE 51200
 #define MAX_DIRECTORY_FILE_NUMBER 10
 #define FILENAME_SIZE 100
+#define MAX_FILENAME_SIZE 252
 
 typedef struct superblock {
 	int nextSuperBlock;
@@ -28,4 +29,4 @@ extern char *inodeTable;
 extern int inodeSize;
 extern superBlock sB;
 extern List *holes;
-extern unsigned int cfs_current_nodeid;
+extern int cfs_current_nodeid;

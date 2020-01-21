@@ -234,9 +234,7 @@ int main(void) {
 				}
 
 				fileDesc = cfs_create(filename,bSize,filenameSize,maxFSize,maxDirFileNum);
-				if(fileDesc == -1)
-					printf("Input error, block size is too small. Please try again.\n");
-				else
+				if(fileDesc != -1)
 					printf("Cfs file %s created.\n",filename);
 
 				free(filename);
