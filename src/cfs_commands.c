@@ -469,10 +469,7 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 
 		nodeid = traverse_cfs(filename,start);
 		if(nodeid == -1)
-		{
-			printf("Couldn't find file %s in cfs.\n",filename);
 			touched = false;
-		}
 		else
 		{
 			metadata = (MDS*) (inodeTable + nodeid*inodeSize + sizeof(bool) + sB.filenameSize);

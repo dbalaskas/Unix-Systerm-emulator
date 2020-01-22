@@ -225,56 +225,108 @@ int getTableSpace()
 int traverse_cfs(char *filename,int start)
 {
 	int		offset, i;
-	char		*curr_name, *split, *curr_dir = (char*)malloc(sB.filenameSize*sizeof(char));
+	int		blocknum, datablocks_checked, dataCounter, j, sum, n, plus, ignore = 0;
+	char		*curr_name, *split, *path_name = (char*)malloc(sB.filenameSize*sizeof(char));
 	MDS		*metadata;
 	Datastream	data;
 
+	strcpy(path_name,filename);
+	// Get first entity in path
 	split = strtok(filename,"/");
-	// If the entity we are looking for is the root
+	// If current entity is the root
 	if(split == NULL)
 	{
-		strcpy(curr_dir,"/");
-		split = curr_dir;
+		strcpy(path_name,"/");
+		split = path_name;
 	}
-	// Go to the element of the inodeTable with nodeid equal to 'start'
+	// Go to the element of the inodeTable with nodeid equal to 'start' (path's first entity)
 	offset = start*inodeSize + sizeof(bool);
 	// As far as there is another entity in path
 	while(split != NULL)
 	{
-		// Get next entity's name in path
-		split = strtok(NULL,"/");
-		if(split != NULL)
+		// If current entity is "."
+		if(!strcmp(split,"."))
+			split = inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool);
+		// If current entity is ".."
+		else if(!strcmp(split,".."))
 		{
-			if(!strcmp(split,"."))
-				split = inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool);
-			else if(!strcmp(split,".."))
-			{
-				metadata = (MDS*) (inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-				split = inodeTable + (metadata->parent_nodeid)*inodeSize + sizeof(bool);
-			}
-			// Go to next entity's data (has to be a directory)
-			offset += sB.filenameSize + sizeof(MDS);
-			data.datablocks = (int*) (inodeTable + offset);
+			metadata = (MDS*) (inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+			split = inodeTable + (metadata->parent_nodeid)*inodeSize + sizeof(bool);
+		}
+		// Go to  entity's metadata and data
+		offset += sB.filenameSize;
+		metadata = (MDS*) (inodeTable + offset);
+		offset += sizeof(MDS);
+		data.datablocks = (int*) (inodeTable + offset);
+		// If it is a directory
+		if(metadata->type == Directory)
+		{
+			// Number of datablocks we have searched
+			datablocks_checked = 0;
+			// For directory's each data block
 			for(i=0; i<sB.maxDatablockNum; i++)
 			{
-				// Check directory's contents
-				start = data.datablocks[i];
-				offset = start*inodeSize + sizeof(bool);
-				curr_name = inodeTable + offset;
-				if(!strcmp(split,curr_name))
+				// If it has contents
+				if(data.datablocks[i] != -1)
 				{
-					split = NULL;
-					break;
+					// Check directory's contents
+					blocknum = data.datablocks[i];
+					CALL(lseek(fd,blocknum*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+					SAFE_READ(fd,&dataCounter,0,sizeof(int),sizeof(int),sum,n,plus);
+
+					// For every pair of (filename+nodeid) in datablock
+					for(j=0; j<dataCounter; j++)
+					{
+						CALL(lseek(fd,j*(sB.filenameSize+sizeof(int)),SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
+						SAFE_READ(fd,curr_name,0,sizeof(char),sB.filenameSize,sum,n,plus);
+						// If current directory contains the entity we are looking for
+						if(!strcmp(split,curr_name))
+						{
+							// Keep entity's place in inodeTable
+							SAFE_READ(fd,&start,0,sizeof(int),sizeof(int),sum,n,plus);
+							offset = start*inodeSize + sizeof(bool);
+							break;
+						}
+					}
+					// If entity was found
+					if(j < dataCounter)
+						break;
+					// Go to the next datablock
+					datablocks_checked++;
 				}
+				// If there are no more datablocks with contents
+				if((datablocks_checked-1) == metadata->datablocksCounter)
+					break;
 			}
 			// If entity wasn't found
-			if(i == sB.maxDatablockNum)
+			if(i == sB.maxDatablockNum || (datablocks_checked-1) == metadatablocksCounter)
+			{
+				printf("Could not find path %s in cfs.\n",path_name);
+				free(path_name);
 				return -1;
+			}
 		}
+		// If current entity is a file
+		else if(metadata->type == File)
+		{
+			split = strtok(NULL,"/");
+			// But there is another entity in path
+			if(split != NULL)
+			{
+				printf("Input error, %s is not a valid path.\n",path_name);
+				free(path_name);
+				return -1;
+			}
+			// Else, it is the file we were looking for ('start' has already been appropriately updated)
+			break;
+		}
+
+		// Get next entity's name in path
+		split = strtok(NULL,"/");
 	}
 
-	free(curr_dir);
-	return (int) start;
+	free(path_name);
+	return start;
 }
 
 int getEmptyBlock()
