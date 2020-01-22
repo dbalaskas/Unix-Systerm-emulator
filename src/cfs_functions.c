@@ -222,12 +222,15 @@ int getTableSpace()
 }
 
 // Find entity (filname) in cfs, starting from entity with nodeid 'start'
-int traverse_cfs(char *filename,int start)
+int traverse_cfs(int fd,char *filename,int start)
 {
-	int		offset, i;
+	int		offset, i, move;
 	int		blocknum, datablocks_checked, dataCounter, j, sum, n, plus, ignore = 0;
-	char		*curr_name, *split, *path_name = (char*)malloc(sB.filenameSize*sizeof(char));
-	MDS		*metadata;
+	char		*split;
+	char		*path_name = (char*)malloc(sB.filenameSize*sizeof(char));
+	char		*curr_name = (char*)malloc(sB.filenameSize*sizeof(char));
+	char		root[2];
+	MDS		*metadata, *parent_mds;
 	Datastream	data;
 
 	strcpy(path_name,filename);
@@ -236,9 +239,10 @@ int traverse_cfs(char *filename,int start)
 	// If current entity is the root
 	if(split == NULL)
 	{
-		strcpy(path_name,"/");
-		split = path_name;
+		strcpy(root,"/");
+		split = root;
 	}
+
 	// Go to the element of the inodeTable with nodeid equal to 'start' (path's first entity)
 	offset = start*inodeSize + sizeof(bool);
 	// As far as there is another entity in path
@@ -277,8 +281,17 @@ int traverse_cfs(char *filename,int start)
 					// For every pair of (filename+nodeid) in datablock
 					for(j=0; j<dataCounter; j++)
 					{
-						CALL(lseek(fd,j*(sB.filenameSize+sizeof(int)),SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
+						move = blocknum*sB.blockSize + sizeof(int) + j*(sB.filenameSize+sizeof(int));
+						CALL(lseek(fd,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 						SAFE_READ(fd,curr_name,0,sizeof(char),sB.filenameSize,sum,n,plus);
+						if(!strcmp(curr_name,"."))
+							strcpy(curr_name, inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool));
+						else if(!strcmp(curr_name,".."))
+						{
+							parent_mds=(MDS*)(inodeTable+cfs_current_nodeid*inodeSize+sizeof(bool)+sB.filenameSize);
+							strcpy(curr_name, inodeTable + (parent_mds->parent_nodeid)*inodeSize + sizeof(bool));
+						}
+
 						// If current directory contains the entity we are looking for
 						if(!strcmp(split,curr_name))
 						{
@@ -295,14 +308,15 @@ int traverse_cfs(char *filename,int start)
 					datablocks_checked++;
 				}
 				// If there are no more datablocks with contents
-				if((datablocks_checked-1) == metadata->datablocksCounter)
+				if(datablocks_checked == metadata->datablocksCounter)
 					break;
 			}
 			// If entity wasn't found
-			if(i == sB.maxDatablockNum || (datablocks_checked-1) == metadatablocksCounter)
+			if(i == sB.maxDatablockNum || datablocks_checked == metadata->datablocksCounter)
 			{
 				printf("Could not find path %s in cfs.\n",path_name);
 				free(path_name);
+				free(curr_name);
 				return -1;
 			}
 		}
@@ -315,6 +329,7 @@ int traverse_cfs(char *filename,int start)
 			{
 				printf("Input error, %s is not a valid path.\n",path_name);
 				free(path_name);
+				free(curr_name);
 				return -1;
 			}
 			// Else, it is the file we were looking for ('start' has already been appropriately updated)
@@ -326,6 +341,7 @@ int traverse_cfs(char *filename,int start)
 	}
 
 	free(path_name);
+	free(curr_name);
 	return start;
 }
 

@@ -40,6 +40,6 @@ while(sum < size)								\
 
 void update_superBlock(int);
 int getTableSpace();
-int traverse_cfs(char*,int);
+int traverse_cfs(int,char*,int);
 int getEmptyBlock();
 

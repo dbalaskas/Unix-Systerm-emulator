@@ -298,7 +298,7 @@ bool cfs_mkdir(int fd,char *dirname)
 */
 bool cfs_touch(int fd,char *filename,touch_mode mode)
 {
-	int	ignore = 0;
+	int	ignore = 0, sum, n, plus;
 	bool	touched, busy;
 
 	CALL(lseek(fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
@@ -310,7 +310,7 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 		char		*split, *temp;
 	 	char		parent_name[sB.filenameSize], new_name[sB.filenameSize];
 		time_t		curr_time;
-		MDS		*current_mds, *metadata;
+		MDS		*current_mds, *parent_mds, *metadata;
 		Datastream	parent_data, data;
 
 		// If path starts with "/"
@@ -376,27 +376,60 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 			return false;
 		}
 		// Find parent directoy in cfs (meaning in inodeTable)
-		parent_nodeid = traverse_cfs(parent_name,start);
+		parent_nodeid = traverse_cfs(fd,parent_name,start);
 		if(parent_nodeid == -1)
-		{
-			printf("Error, could not find parent directory in cfs.\n");
 			return false;
-		}
+		// Go to parent's metadata
+		parent_mds = (MDS*) (inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+		// Go to parent's data
 		parent_data.datablocks = (int*)(inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
 
-		// Update parent directory's data
-		for(i=0; i<sB.maxDatablockNum; i++)
-			if(parent_data.datablocks[i] == 0)
-				break;
-		if(i == sB.maxDatablockNum)
+		// If parent directory has no datablocks available
+		if(parent_mds->datablocksCounter == sB.maxDatablockNum)
 		{
 			printf("Not enough space in parent directory to create file %s.\n",filename);
 			return false;
 		}
 
+		int	dataCounter;
+
 		// Find an empty space in inodeTable
 		new_nodeid = getTableSpace();
-		parent_data.datablocks[i] = new_nodeid;
+
+		// Update parent directory's data
+		for(i=0; i<sB.maxDatablockNum; i++)
+		{
+			// If current datablock is empty
+			if(parent_data.datablocks[i] == -1)
+			{
+				parent_data.datablocks[i] = getEmptyBlock();
+				// Go to datablock
+				CALL(lseek(fd,(parent_data.datablocks[i])*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				dataCounter = 0;
+			}
+			else
+			{
+				// Go to datablock
+				CALL(lseek(fd,(parent_data.datablocks[i])*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				SAFE_READ(fd,&dataCounter,0,sizeof(int),sizeof(int),sum,n,plus);
+			}
+
+			// If there is space for another entity
+			if(dataCounter < sB.maxEntitiesPerBlock)
+			{
+				// Go after the last entity in the datablock
+				CALL(lseek(fd,dataCounter*(sB.filenameSize+sizeof(int)),SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
+				// Add new entity
+				SAFE_WRITE(fd,new_name,0,sizeof(char),sB.filenameSize,sum,n,plus);
+				SAFE_WRITE(fd,&new_nodeid,0,sizeof(int),sizeof(int),sum,n,plus);
+				// Increase datablock's counter
+				dataCounter++;
+				CALL(lseek(fd,(parent_data.datablocks[i])*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				SAFE_WRITE(fd,&dataCounter,0,sizeof(int),sizeof(int),sum,n,plus);
+				// If this is the first entity in datablock
+				break;
+			}
+		}
 
 		sB.nodeidCounter++;
 		sB.iTableCounter++;
@@ -420,11 +453,12 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 		metadata->creation_time = curr_time;
 		metadata->access_time = curr_time;
 		metadata->modification_time = curr_time;
+		metadata->datablocksCounter = 0;
 
 		offset += sizeof(MDS);
 		data.datablocks = (int*) (inodeTable + offset);
 		for(i=0; i<sB.maxDatablockNum; i++)
-			data.datablocks[i] = 0;
+			data.datablocks[i] = -1;
 
 		touched = true;
 	}
@@ -467,7 +501,7 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 			}
 		}
 
-		nodeid = traverse_cfs(filename,start);
+		nodeid = traverse_cfs(fd,filename,start);
 		if(nodeid == -1)
 			touched = false;
 		else
@@ -479,7 +513,7 @@ bool cfs_touch(int fd,char *filename,touch_mode mode)
 			else if(mode == MOD)
 				metadata->modification_time = curr_time;
 		}
-			touched = true;
+		touched = true;
 	}
 
 	return touched;
