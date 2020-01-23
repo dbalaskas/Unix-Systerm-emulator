@@ -13,11 +13,12 @@ typedef struct superblock {
 	int filenameSize;
 	int maxFileSize;
 	int maxFilesPerDir;
-	int maxDatablockNum;
+	int maxFileDatablockNum;
+	int maxDirDatablockNum;
 //   	int metadataBlocksNum;
 	int maxEntitiesPerBlock;		// Entity: filename + nodeid (for directrories' data)
 	int root;
-	int blockCounter;
+	int blockCounter;			// Last block's number (zero based)
 	int nodeidCounter;
 	int ListSize;
     	int iTableBlocksNum;

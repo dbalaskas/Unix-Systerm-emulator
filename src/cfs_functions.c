@@ -86,8 +86,8 @@ void update_superBlock(int fileDesc)
 			// size_to_write must be a multiple of sizeof(int)
 			if(size_to_write % sizeof(int))
 				size_to_write -= size_to_write % sizeof(int);
-			while(dataSize > 0)
-			{
+//			while(dataSize > 0)
+			do {
 				// Write as many (non-empty) datablocks as possible in current block
 				while(writtenData*sizeof(int) < size_to_write)
 				{
@@ -161,15 +161,15 @@ void update_superBlock(int fileDesc)
 					if(size_to_write % sizeof(int))
 						size_to_write -= size_to_write % sizeof(int);
 				}
-			}
-      	}
+			} while(dataSize > 0);
+	      	}
 	}
     	// Write the holeList on the file
     	int	hole;
 
 	// As long as List is not empty, find and go to the right block to write the list
     	for (int i=0; i<sB.ListSize;i++) {
-        	hole = pop(holes);
+        	hole = pop(&holes);
 		// If there is space in current block
         	if (freeSpaces > 0) {
 				move = overflow_block*sB.blockSize + (sB.blockSize - freeSpaces);
@@ -227,15 +227,16 @@ int traverse_cfs(int fd,char *filename,int start)
 	int		offset, i, move;
 	int		blocknum, datablocks_checked, dataCounter, j, sum, n, plus, ignore = 0;
 	char		*split;
-	char		*path_name = (char*)malloc(sB.filenameSize*sizeof(char));
+	char		path_name[sB.filenameSize];
 	char		*curr_name = (char*)malloc(sB.filenameSize*sizeof(char));
 	char		root[2];
 	MDS		*metadata, *parent_mds;
 	Datastream	data;
 
+	// 'path_name' will be used by strtok, so that 'filename' remains unchanged
 	strcpy(path_name,filename);
 	// Get first entity in path
-	split = strtok(filename,"/");
+	split = strtok(path_name,"/");
 	// If current entity is the root
 	if(split == NULL)
 	{
@@ -268,7 +269,7 @@ int traverse_cfs(int fd,char *filename,int start)
 			// Number of datablocks we have searched
 			datablocks_checked = 0;
 			// For directory's each data block
-			for(i=0; i<sB.maxDatablockNum; i++)
+			for(i=0; i<sB.maxFileDatablockNum; i++)
 			{
 				// If it has contents
 				if(data.datablocks[i] != -1)
@@ -312,10 +313,9 @@ int traverse_cfs(int fd,char *filename,int start)
 					break;
 			}
 			// If entity wasn't found
-			if(i == sB.maxDatablockNum || datablocks_checked == metadata->datablocksCounter)
+			if(i == sB.maxFileDatablockNum || datablocks_checked == metadata->datablocksCounter)
 			{
-				printf("Could not find path %s in cfs.\n",path_name);
-				free(path_name);
+				printf("Could not find path %s in cfs.\n",filename);
 				free(curr_name);
 				return -1;
 			}
@@ -327,8 +327,7 @@ int traverse_cfs(int fd,char *filename,int start)
 			// But there is another entity in path
 			if(split != NULL)
 			{
-				printf("Input error, %s is not a valid path.\n",path_name);
-				free(path_name);
+				printf("Input error, %s is not a valid path.\n",filename);
 				free(curr_name);
 				return -1;
 			}
@@ -340,14 +339,13 @@ int traverse_cfs(int fd,char *filename,int start)
 		split = strtok(NULL,"/");
 	}
 
-	free(path_name);
 	free(curr_name);
 	return start;
 }
 
 int getEmptyBlock()
 {
-    int new_blockNum = pop(holes);
+    int new_blockNum = pop(&holes);
     if(new_blockNum > 0) {
         sB.ListSize--;
         return new_blockNum;
