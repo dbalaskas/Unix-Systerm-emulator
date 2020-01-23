@@ -1,0 +1,3 @@
+cfs_workwith test.cfs
+cfs_ls -a -u
+cfs_exit
