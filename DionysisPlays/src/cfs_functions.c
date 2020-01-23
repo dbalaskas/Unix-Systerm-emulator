@@ -343,6 +343,98 @@ int traverse_cfs(int fd,char *filename,int start)
 	return start;
 }
 
+int get_parent(int fd, char *path,char *new_name)
+{
+	int		ignore = 0;
+	int		start;
+	int		parent_nodeid;
+	char		*split, *temp;
+ 	char		*parent_name;
+	int 		parent_name_Size;
+	MDS		*current_mds;
+
+	CALL(lseek(fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+
+	// If path starts with "/"
+	if(!strncmp(path,"/",1))
+	{
+		// Parent path will also start with "/"
+		parent_name = malloc(2);
+		strcpy(parent_name, "/");
+		// Traversing cfs will start from the root (nodeid = 0)
+		start = 0;
+		// Get next entity in path
+		split = strtok(path,"/");
+	}
+	else
+	{
+		// Get first entity in path
+		split = strtok(path,"/");
+		// If path starts from current directory's parent
+		if(!strcmp(split,".."))
+		{
+			current_mds = (MDS*)(inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+			start = current_mds->parent_nodeid;
+			parent_name = malloc(4);
+			strcpy(parent_name, "../");
+			split = strtok(NULL,"/");
+		}
+		else	//if(!strcmp(split,".") || strcmp(split,"/"))
+		{
+			// If path starts from current directory
+			start = cfs_current_nodeid;
+			parent_name = malloc(3);
+			strcpy(parent_name, "./");
+			if(!strcmp(split,"."))
+				// Get next entity in path
+				split = strtok(NULL,"/");
+		}
+	}
+
+	// If root is given as new name
+	if (split == NULL) {
+		printf("Input error, root was given as new entity.\n");
+		free(parent_name);
+		return -1;
+	}
+
+	// Get parent's name and new entity's name
+	temp = strtok(NULL,"/");
+	while(temp != NULL)
+	{
+		parent_name_Size = strlen(parent_name) + strlen(split) + 1;
+		parent_name = realloc(parent_name, parent_name_Size);
+		strcat(parent_name, split);
+
+		split = temp;
+		temp = strtok(NULL,"/");
+		if(temp != NULL) {
+			parent_name_Size = strlen(parent_name) + 2;
+			parent_name = realloc(parent_name, parent_name_Size);
+			strcat(parent_name,"/");
+		}
+	}
+
+	// If new entity's name is too long
+	if(strlen(split)+1 > sB.filenameSize) {
+		printf("Input error, too long directory name.\n");
+		free(parent_name);
+		return -1;
+	}
+
+	// If the name from the path is asked
+	if(new_name != NULL)
+		strcpy(new_name,split);
+	// Find parent directoy in cfs (meaning in inodeTable)
+	parent_nodeid = traverse_cfs(fd,parent_name,start);
+//	if(parent_nodeid == -1) {
+	free(parent_name);
+//		return -1;
+//	}
+
+	return parent_nodeid;
+}
+
 int getEmptyBlock()
 {
     int new_blockNum = pop(&holes);
