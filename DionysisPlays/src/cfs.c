@@ -5,11 +5,10 @@
 void printCommands();
 
 int main(void) {
-	int 	 i;
 	char	*ignore = NULL;
-	char	*command, *tmp, *option, *value;
-	char	 line[256], name[FILENAME_SIZE];
-	int		 fileDesc = -1;						//updated by cfs_create or cfs_workwith
+	char	*command, *temp, *option, *value, *rest;
+	char	 line[256], name[256];
+	int	 fileDesc = -1;						//updated by cfs_create or cfs_workwith
 	bool	 open_cfs = false;
 
 	printCommands();
@@ -23,14 +22,15 @@ int main(void) {
 		printf("$ ");
 
 		CALL(fgets(line,sizeof(line),stdin),NULL,NULL,6,ignore);
-		tmp = strtok(line,"\n");
-		command = strtok(tmp," \t");
+		temp = strtok(line,"\n");
+		rest = temp;
+		command = strtok_r(temp," \t",&rest);
 		if(command == NULL) {
 			continue;
 		}
 		if(!strcmp(command,"cfs_workwith"))
 		{
-			option = strtok(NULL," \t");
+			option = strtok_r(NULL," \t",&rest);
 			if(option == NULL)
 				printf("Input error, please give a filename.\n");
 			else
@@ -58,6 +58,21 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
+				option = strtok_r(NULL," \t",&rest);
+				if(option == NULL)
+					printf("Input error, too few arguments.\n");
+
+				int	created_dir;
+
+				while(option != NULL)
+				{
+					strcpy(name,option);
+					created_dir = cfs_mkdir(fileDesc,name);
+					if(created_dir != -1)
+						printf("Directory %s created.\n",option);
+
+					option = strtok_r(rest," \t",&rest);
+				}
 			}
 		}
 		else if(!strcmp(command,"cfs_touch"))
@@ -66,41 +81,35 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
-				option = strtok(NULL," \t");
+				option = strtok_r(NULL," \t",&rest);
 				if(option == NULL)
 					printf("Input error, too few arguments.\n");
-				else
+
+				int		touched;
+				touch_mode	mode;
+
+				while(option != NULL)
 				{
-					touch_mode	mode;
+					if(!strcmp(option,"-a"))
+						mode = ACC;
+					else if(!strcmp(option,"-m"))
+						mode = MOD;
+					else
+						mode = CRE;
 
-					while(option != NULL)
+					if(mode != CRE)
+						option = strtok_r(NULL," \t",&rest);
+					if(option == NULL)
+						printf("Input error, please give a filename.\n");
+					else
 					{
-						if(!strcmp(option,"-a"))
-							mode = ACC;
-						else if(!strcmp(option,"-m"))
-							mode = MOD;
-						else
-							mode = CRE;
-
-						if(mode != CRE)
-							option = strtok(NULL," \t");
-						if(option == NULL)
-							printf("Input error, please give a filename.\n");
-						else
-						{
-							bool	touched;
-
-							strcpy(name,option);
-							touched = cfs_touch(fileDesc,name,mode);
-							if(touched)
-								printf("File %s touched in cfs.\n",option);
-						}
-
-				 		if(option != NULL)
-							option = strtok(NULL," \t");
-//						if(option != NULL)
-//							printf("%s\n",option);
+						strcpy(name,option);
+						touched = cfs_touch(fileDesc,name,mode);
+						if(touched != -1)
+							printf("File %s touched in cfs.\n",option);
 					}
+
+					option = strtok_r(rest," \t",&rest);
 				}
 			}
 		}
@@ -110,7 +119,11 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
-				cfs_pwd();
+				option = strtok_r(NULL," \t",&rest);
+				if(option != NULL)
+					printf("Input error, too many arguments.\n");
+				else
+					cfs_pwd();
 			}
 		}
 		else if(!strcmp(command,"cfs_cd"))
@@ -119,8 +132,11 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
-				char *path = strtok(NULL," \t");
-				cfs_cd(fileDesc, path);
+				option = strtok_r(NULL," \t",&rest);
+				if((rest != NULL) && (strcmp(rest,"")))
+					printf("Input error, too many arguments.\n");
+				else
+					cfs_cd(fileDesc, option);
 			}
 		}
 		else if(!strcmp(command,"cfs_ls"))
@@ -129,15 +145,12 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
-				char path[256];
 				bool ls_modes[6];
+				string_List *directories = NULL;
 				for (int i=0; i<6;i++)
 					ls_modes[i]=false;
-				
-				option = strtok(NULL," \t");
-				if (option == NULL) {
-					cfs_ls(fileDesc, ls_modes, NULL);
-				}
+					
+				option = strtok_r(NULL," \t",&rest);
 
 				while(option != NULL)
 				{
@@ -153,32 +166,17 @@ int main(void) {
 						ls_modes[LS_D] = true;
 					} else if (strcmp(option, "-h") == 0) {
 						ls_modes[LS_H] = true;
-					// } else {
-					// 	// i=0;
-					// 	// while (ls_modes[i] == false && i<6) {
-					// 	// 	i++;
-					// 	// }
+					} else {
+						add_stringNode(&directories, option);
+					}
 
-					// 	// if (option == NULL && i < 6) {
-					// 	// 	printf("Input error, please give a filename.\n");
-					// 	// } else {
-					// 	// 	strcpy(path,option);
-					// 	// 	cfs_ls(fileDesc, ls_modes, path);
-					// 	// }
-
-					// 	strcpy(path,option);
-					// 	cfs_ls(fileDesc, ls_modes, path);
-
-					// 	for (int i=0; i<6;i++)
-					// 		ls_modes[i]=false;
-					// }
+					option = strtok_r(NULL," \t",&rest);
 				}
-				i=0;
-				while (ls_modes[i] == false && i<6) {
-					i++;
-				}
-				if (i < 6) {
+				if (directories == NULL) {
 					cfs_ls(fileDesc, ls_modes, NULL);
+				} else {
+					while (directories != NULL)
+						cfs_ls(fileDesc, ls_modes, pop_last_string(&directories));
 				}
 			}
 		}
@@ -244,7 +242,7 @@ int main(void) {
 			int	nameSize = FILENAME_SIZE;
 			char	*filename;
 
-			option = strtok(NULL," \t");
+			option = strtok_r(NULL," \t",&rest);
 			if(option == NULL)
 				printf("Input error, too few arguments.\n");
 			else
@@ -254,23 +252,23 @@ int main(void) {
 				{
 					if(!strcmp(option,"-bs"))
 					{
-						value = strtok(NULL," \t");
+						value = strtok_r(NULL," \t",&rest);
 						bSize = atoi(value);
 					}
 					else if(!strcmp(option,"-fns"))
 					{
-						value = strtok(NULL," \t");
+						value = strtok_r(NULL," \t",&rest);
 						filenameSize = atoi(value);
 						nameSize = filenameSize;
 					}
 					else if(!strcmp(option,"-cfs"))
 					{
-						value = strtok(NULL," \t");
+						value = strtok_r(NULL," \t",&rest);
 						maxFSize = atoi(value);
 					}
 					else if(!strcmp(option,"-mdfn"))
 					{
-						value = strtok(NULL," \t");
+						value = strtok_r(NULL," \t",&rest);
 						maxDirFileNum = atoi(value);
 					}
 					else if(option != NULL)
@@ -278,7 +276,7 @@ int main(void) {
 						filename = (char*)malloc(nameSize*sizeof(char));
 						strcpy(filename,option);
 					}
-					option = strtok(NULL," \t");
+					option = strtok_r(NULL," \t",&rest);
 				}
 				if (filename == NULL) {
 					printf("Input error, too few arguments.\n");
