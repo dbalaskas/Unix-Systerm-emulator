@@ -133,7 +133,7 @@ int main(void) {
 				bool ls_modes[6];
 				for (int i=0; i<6;i++)
 					ls_modes[i]=false;
-					
+				
 				option = strtok(NULL," \t");
 				if (option == NULL) {
 					cfs_ls(fileDesc, ls_modes, NULL);
@@ -153,24 +153,25 @@ int main(void) {
 						ls_modes[LS_D] = true;
 					} else if (strcmp(option, "-h") == 0) {
 						ls_modes[LS_H] = true;
-					} else {
-						i=0;
-						while (ls_modes[i] == false && i<6) {
-							i++;
-						}
+					// } else {
+					// 	// i=0;
+					// 	// while (ls_modes[i] == false && i<6) {
+					// 	// 	i++;
+					// 	// }
 
-						if (option == NULL && i < 6) {
-							printf("Input error, please give a filename.\n");
-						} else {
-							strcpy(path,option);
-							cfs_ls(fileDesc, ls_modes, path);
-						}
+					// 	// if (option == NULL && i < 6) {
+					// 	// 	printf("Input error, please give a filename.\n");
+					// 	// } else {
+					// 	// 	strcpy(path,option);
+					// 	// 	cfs_ls(fileDesc, ls_modes, path);
+					// 	// }
 
-						for (int i=0; i<6;i++)
-							ls_modes[i]=false;
-					}
-					if(option != NULL)
-						option = strtok(NULL," \t");
+					// 	strcpy(path,option);
+					// 	cfs_ls(fileDesc, ls_modes, path);
+
+					// 	for (int i=0; i<6;i++)
+					// 		ls_modes[i]=false;
+					// }
 				}
 				i=0;
 				while (ls_modes[i] == false && i<6) {
