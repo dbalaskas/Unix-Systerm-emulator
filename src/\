@@ -94,11 +94,13 @@ int main(void) {
 							bool	touched;
 
 							strcpy(name,option);
+//							option = strtok(NULL," \t");
 							touched = cfs_touch(fileDesc,name,mode);
 							if(touched)
 								printf("File %s touched in cfs.\n",name);
 						}
 
+//						if(option != NULL)
 						option = strtok_r(rest," \t",&rest);
 					}
 				}
@@ -119,7 +121,7 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
-				char *path = strtok_r(NULL," \t",&rest);
+				char *path = strtok(NULL," \t");
 				cfs_cd(fileDesc, path);
 			}
 		}
@@ -129,25 +131,16 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
-				option = strtok_r(NULL," \t",&rest);
-				if(option == NULL)
-					printf("Input error, too few arguments.\n");
-				else
-				{
-					while(option != NULL)
-					{
-						if (strcmp(option, "-a") == 0) {}
-				                else if (strcmp(option, "-r") == 0) {}
-                				else if (strcmp(option, "-l") == 0) {}
-                				else if (strcmp(option, "-u") == 0) {}
-                				else if (strcmp(option, "-d") == 0) {}
-	                			else if (strcmp(option, "-h") == 0) {}
+				option = strtok(NULL," \t\n");
+				if (strcmp(option, "-a") == 0) {}
+		                else if (strcmp(option, "-r") == 0) {}
+                		else if (strcmp(option, "-l") == 0) {}
+                		else if (strcmp(option, "-u") == 0) {}
+                		else if (strcmp(option, "-d") == 0) {}
+                		else if (strcmp(option, "-h") == 0) {}
 
-						cfs_ls(fileDesc, option);
-					}
-
-					option = strtok_r(rest," \t",&rest);
-				}
+				char *path = strtok(NULL," \t");
+				cfs_ls(fileDesc, option, path);
 			}
 		}
 		else if(!strcmp(command,"cfs_cp"))

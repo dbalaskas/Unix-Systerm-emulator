@@ -5,6 +5,7 @@
 #define MAX_FILE_SIZE 51200
 #define MAX_DIRECTORY_FILE_NUMBER 10
 #define FILENAME_SIZE 100
+#define MAX_FILENAME_SIZE 252
 
 typedef struct superblock {
 	int nextSuperBlock;
@@ -12,26 +13,21 @@ typedef struct superblock {
 	int filenameSize;
 	int maxFileSize;
 	int maxFilesPerDir;
-	int maxDatablockNum;
-	// int metadataSize;
-   	int metadataBlocksNum;
+	int maxFileDatablockNum;
+	int maxDirDatablockNum;
+//   	int metadataBlocksNum;
+	int maxEntitiesPerBlock;		// Entity: filename + nodeid (for directrories' data)
 	int root;
-	int blockCounter;
+	int blockCounter;			// Last block's number (zero based)
 	int nodeidCounter;
 	int ListSize;
     	int iTableBlocksNum;
     	int iTableCounter;
 } superBlock;
 
-// typedef struct {
-//     char *table;
-//     int inodeCounter;
-// } inodeTable;
-
-
 
 extern char *inodeTable;
 extern int inodeSize;
 extern superBlock sB;
 extern List *holes;
-extern unsigned int cfs_current_nodeid;
+extern int cfs_current_nodeid;
