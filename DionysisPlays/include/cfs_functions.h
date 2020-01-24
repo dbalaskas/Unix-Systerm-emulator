@@ -50,8 +50,8 @@ if(returnVal == error)															\
 void update_superBlock(int);
 int getTableSpace();
 int traverse_cfs(int, char*,int);
-int get_parent(int,char*,char*);
 int getEmptyBlock();
+int get_parent(int,char*,char*);
 int getPathStartId(char*);
 void replaceEntity(int,int,int);
 void append_file(int,int,int);

@@ -211,7 +211,7 @@ int main(void) {
 					option = strtok_r(NULL," \t",&rest);
 					if(option == NULL)
 					{
-						appended = cfs_cat(fileDesc,&sourceList,option_prev);
+						appended = cfs_cat(fileDesc,sourceList,option_prev);
 						if(appended)
 							printf("List of sources appended to output file %s.\n",option_prev);
 						option_prev = NULL;

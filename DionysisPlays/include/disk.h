@@ -22,8 +22,8 @@ typedef struct superblock {
 	int blockCounter;
 	int nodeidCounter;
 	int ListSize;
-    	int iTableBlocksNum;
-    	int iTableCounter;
+	int iTableBlocksNum;
+	int iTableCounter;
 } superBlock;
 
 

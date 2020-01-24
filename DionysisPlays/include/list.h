@@ -21,5 +21,4 @@ void destroy_stringList(string_List*);
 char *pop_minimum_string(string_List**);
 char *pop_last_string(string_List**);
 int getLength(string_List*);
-//----------------------------------------
-char* get_stringNode(string_List**,int);
+char *get_stringNode(string_List**,int);

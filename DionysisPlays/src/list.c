@@ -79,10 +79,8 @@ char *pop_string(string_List **list)
 
 void destroy_stringList(string_List *list)
 {
-	char *result;
     while (list != NULL) {
-        result = pop_string(&list);
-	free(result);
+        pop_string(&list);
     }
 }
 
@@ -152,11 +150,22 @@ char *pop_last_string(string_List** list)
     return result;
 }
 
-char* get_stringNode(string_List** list,int n)
+int getLength(string_List *list)
+{
+    int counter = 0;
+    string_List *temp = list;
+    while (temp != NULL)
+    {
+        counter++;
+        temp = temp->next;
+    }
+    return counter;
+}
+
+char *get_stringNode(string_List** list,int n)
 {
 	if(list == NULL || *list == NULL)
 		return NULL;
-
 	int		i = 1;
 	string_List	*temp = *list;
 	while(temp != NULL && i<= n)
@@ -169,16 +178,4 @@ char* get_stringNode(string_List** list,int n)
 	}
 
 	return NULL;
-}
-
-int getLength(string_List *list)
-{
-    int counter = 0;
-    string_List *temp = list;
-    while (temp != NULL)
-    {
-        counter++;
-        temp = temp->next;
-    }
-    return counter;
 }

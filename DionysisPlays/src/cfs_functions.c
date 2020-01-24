@@ -227,14 +227,13 @@ int traverse_cfs(int fd,char *filename,int start)
 	int		offset, i, move;
 	int		blocknum, datablocks_checked, dataCounter, j, ignore = 0;
 	char		*split;
-	char		*path_name;
+	char		path_name[sB.filenameSize];
 	char		*curr_name = (char*)malloc(sB.filenameSize*sizeof(char));
 	char		root[2];
 	MDS		*metadata, *parent_mds;
 	Datastream	data;
 
 	// 'path_name' will be used by strtok, so that 'filename' remains unchanged
-	path_name = (char*)malloc(strlen(filename)+1);
 	strcpy(path_name,filename);
 	// Get first entity in path
 	split = strtok(path_name,"/");
@@ -316,9 +315,8 @@ int traverse_cfs(int fd,char *filename,int start)
 			// If entity wasn't found
 			if(i == sB.maxFileDatablockNum || datablocks_checked == metadata->datablocksCounter)
 			{
-				printf("Could not find path %s in cfs.\n",filename);
+				printf("Could not find path '%s' in cfs.\n",filename);
 				free(curr_name);
-				free(path_name);
 				return -1;
 			}
 		}
@@ -329,9 +327,8 @@ int traverse_cfs(int fd,char *filename,int start)
 			// But there is another entity in path
 			if(split != NULL)
 			{
-				printf("Input error, %s is not a valid path.\n",filename);
+				printf("Input error, '%s' is not a valid path.\n",filename);
 				free(curr_name);
-				free(path_name);
 				return -1;
 			}
 			// Else, it is the file we were looking for ('start' has already been appropriately updated)
@@ -343,8 +340,89 @@ int traverse_cfs(int fd,char *filename,int start)
 	}
 
 	free(curr_name);
-	free(path_name);
 	return start;
+}
+
+int getEmptyBlock()
+{
+    int new_blockNum = pop(&holes);
+    if(new_blockNum > 0) {
+        sB.ListSize--;
+        return new_blockNum;
+    } else {
+        sB.blockCounter++;
+        return sB.blockCounter;
+    }
+}
+
+int getPathStartId(char* path)
+{
+	int start;
+	char *initial_path = (char*) malloc(strlen(path)+1);
+	if(path[0] == '/')
+	{
+		// Traversing cfs will start from the root (nodeid = 0)
+		start = 0;
+	}
+	else
+	{
+		// Get first entity in path
+		strcpy(initial_path,path);
+		char *start_dir = strtok(initial_path,"/");
+		// If path starts from current directory's parent
+		if(strcmp(start_dir,"..") == 0)
+		{
+			MDS *current_mds = (MDS *) (inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+			start = current_mds->parent_nodeid;
+		}
+		else	//if(!strcmp(split,".") || strcmp(split,"/"))
+		{
+			// If path starts from current directory
+			start = cfs_current_nodeid;
+		}
+	}
+	return start;
+}
+
+void replaceEntity(int fileDesc, int source_nodeid, int destination_nodeid)
+{	
+	MDS *source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	int *source_data = (int*) inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS);
+	int source_dataBlocksNum = source_mds->datablocksCounter;
+	MDS *destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	int *destination_data = (int*) inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS);
+
+	int ignore;
+	int k = 0, j = 0;
+	bool blocksExpired = false;
+	int blockNum;
+	char buff[sB.blockSize];
+	for (int i=0; i < source_dataBlocksNum; i++) {
+		while (source_data[k] == -1)
+			k++;
+
+		if (blocksExpired == false) {
+			while (destination_data[j] == -1)
+				j++;
+			blockNum = destination_data[j];
+			j++;
+		} else {
+			blockNum = getEmptyBlock();
+			j = 0;
+			while (destination_data[j] != -1)
+				j++;
+			destination_data[j] = blockNum;
+			
+		}
+		
+		CALL(lseek(fileDesc,source_data[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		SAFE_READ(fileDesc,buff,0,sizeof(char),sB.blockSize);
+
+		CALL(lseek(fileDesc,blockNum*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		SAFE_WRITE(fileDesc,buff,0,sizeof(char),sB.blockSize);
+	}
+	destination_mds->datablocksCounter = source_dataBlocksNum;
+	destination_mds->size = source_mds->size;
 }
 
 int get_parent(int fd, char *path,char *new_name)
@@ -437,91 +515,6 @@ int get_parent(int fd, char *path,char *new_name)
 //	}
 
 	return parent_nodeid;
-}
-
-int getEmptyBlock()
-{
-    int new_blockNum = pop(&holes);
-    if(new_blockNum > 0) {
-        sB.ListSize--;
-        return new_blockNum;
-    } else {
-        sB.blockCounter++;
-        return sB.blockCounter;
-    }
-}
-
-int getPathStartId(char* path)
-{
-	int start;
-	char* initial_path = (char*)malloc(strlen(path+1));
-	if(path[0] == '/')
-	{
-		// Traversing cfs will start from the root (nodeid = 0)
-		start = 0;
-	}
-	else
-	{
-		// Get first entity in path
-		strcpy(initial_path,path);
-		char *start_dir = strtok(initial_path,"/");
-		// If path starts from current directory's parent
-		if(strcmp(start_dir,"..") == 0)
-		{
-			MDS *current_mds = (MDS *) (inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-			start = current_mds->parent_nodeid;
-		}
-		else	//if(!strcmp(split,".") || strcmp(split,"/"))
-		{
-			// If path starts from current directory
-			start = cfs_current_nodeid;
-		}
-	}
-
-	free(initial_path);
-	return start;
-}
-
-void replaceEntity(int fileDesc, int source_nodeid, int destination_nodeid)
-{	
-	MDS *source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-	int *source_data = (int*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
-	int source_dataBlocksNum = source_mds->datablocksCounter;
-	MDS *destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-	int *destination_data = (int*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
-//	int destination_dataBlocksNum = destination_mds->datablocksCounter;
-
-	int ignore;
-	int k = 0, j = 0;
-	bool blocksExpired = false;
-	int blockNum;
-	char buff[sB.blockSize];
-	for (int i=0; i < source_dataBlocksNum; i++) {
-		while (source_data[k] == -1)
-			k++;
-
-		if (blocksExpired == false) {
-			while (destination_data[j] == -1)
-				j++;
-			blockNum = destination_data[j];
-			j++;
-		} else {
-			blockNum = getEmptyBlock();
-			j = 0;
-			while (destination_data[j] != -1)
-				j++;
-			destination_data[j] = blockNum;
-			
-		}
-		
-		CALL(lseek(fileDesc,source_data[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-		SAFE_READ(fileDesc,buff,0,sizeof(char),sB.blockSize);
-
-		CALL(lseek(fileDesc,blockNum*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-		SAFE_WRITE(fileDesc,buff,0,sizeof(char),sB.blockSize);
-	}
-	destination_mds->datablocksCounter = source_dataBlocksNum;
-	destination_mds->size = source_mds->size;
 }
 
 void append_file(int fd,int source_nodeid,int output_nodeid)
