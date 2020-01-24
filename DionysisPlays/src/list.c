@@ -79,8 +79,10 @@ char *pop_string(string_List **list)
 
 void destroy_stringList(string_List *list)
 {
+	char *result;
     while (list != NULL) {
-        pop_string(&list);
+        result = pop_string(&list);
+	free(result);
     }
 }
 
