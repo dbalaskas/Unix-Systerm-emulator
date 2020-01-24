@@ -213,11 +213,13 @@ int main(void) {
 					{
 						appended = cfs_cat(fileDesc,sourceList,option_prev);
 						if(appended)
+						{
 							printf("List of sources appended to output file %s.\n",option_prev);
+							sourceList = NULL;
+						}
 						option_prev = NULL;
 					}
 				}
-
 				destroy_stringList(sourceList);
 			}
 		}

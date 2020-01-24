@@ -80,7 +80,7 @@ char *pop_string(string_List **list)
 void destroy_stringList(string_List *list)
 {
     while (list != NULL) {
-        pop_string(&list);
+        free(pop_string(&list));
     }
 }
 

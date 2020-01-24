@@ -9,6 +9,6 @@ int cfs_create(char*,int,int,unsigned int,int);
 bool cfs_pwd();
 bool cfs_cd(int, char*);
 bool cfs_ls(int, bool*, char*);
-bool cfs_cat(int,string_List**,char*);
+bool cfs_cat(int,string_List*,char*);
 bool cfs_close(int);
 

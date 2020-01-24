@@ -315,7 +315,7 @@ int traverse_cfs(int fd,char *filename,int start)
 			// If entity wasn't found
 			if(i == sB.maxFileDatablockNum || datablocks_checked == metadata->datablocksCounter)
 			{
-				printf("Could not find path '%s' in cfs.\n",filename);
+				printf("Path '%s' does not exist in cfs yet.\n",filename);
 				free(curr_name);
 				return -1;
 			}
@@ -381,6 +381,7 @@ int getPathStartId(char* path)
 			start = cfs_current_nodeid;
 		}
 	}
+	free(initial_path);
 	return start;
 }
 
@@ -431,12 +432,14 @@ int get_parent(int fd, char *path,char *new_name)
 	int		start;
 	int		parent_nodeid;
 	char		*split, *temp;
- 	char		*parent_name;
+ 	char		*parent_name, *initial_path;
 	int 		parent_name_Size;
 	MDS		*current_mds;
 
 	CALL(lseek(fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 
+	initial_path = (char*)malloc(strlen(path)+1);
+	strcpy(initial_path,path);
 	// If path starts with "/"
 	if(!strncmp(path,"/",1))
 	{
@@ -446,12 +449,12 @@ int get_parent(int fd, char *path,char *new_name)
 		// Traversing cfs will start from the root (nodeid = 0)
 		start = 0;
 		// Get next entity in path
-		split = strtok(path,"/");
+		split = strtok(initial_path,"/");
 	}
 	else
 	{
 		// Get first entity in path
-		split = strtok(path,"/");
+		split = strtok(initial_path,"/");
 		// If path starts from current directory's parent
 		if(!strcmp(split,".."))
 		{
@@ -477,6 +480,7 @@ int get_parent(int fd, char *path,char *new_name)
 	if (split == NULL) {
 		printf("Input error, root was given as new entity.\n");
 		free(parent_name);
+		free(initial_path);
 		return -1;
 	}
 
@@ -501,6 +505,7 @@ int get_parent(int fd, char *path,char *new_name)
 	if(strlen(split)+1 > sB.filenameSize) {
 		printf("Input error, too long directory name.\n");
 		free(parent_name);
+		free(initial_path);
 		return -1;
 	}
 
@@ -509,10 +514,8 @@ int get_parent(int fd, char *path,char *new_name)
 		strcpy(new_name,split);
 	// Find parent directoy in cfs (meaning in inodeTable)
 	parent_nodeid = traverse_cfs(fd,parent_name,start);
-//	if(parent_nodeid == -1) {
 	free(parent_name);
-//		return -1;
-//	}
+	free(initial_path);
 
 	return parent_nodeid;
 }

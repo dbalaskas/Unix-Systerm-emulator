@@ -220,14 +220,22 @@ int cfs_mkdir(int fd,char *dirname)
 	parent_nodeid = get_parent(fd,dirname,new_name);
 	if(parent_nodeid == -1)
 		return -1;
-	// Check if directory exists
-	if(traverse_cfs(fd,new_name,parent_nodeid) != -1)
-	{
-		printf("Input error, directory '%s' already exists.\n",dirname);
-		return -1;
-	}
 	// Go to parent's metadata
 	parent_mds = (MDS*) (inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	// Check if parent is a directory
+	if(parent_mds->type != Directory)
+	{
+		printf("Input error, %s is not a directory.\n",inodeTable+parent_nodeid*inodeSize+sizeof(bool));
+		return -1;
+	}
+
+	// Check if new directory exists
+	if(traverse_cfs(fd,new_name,parent_nodeid) != -1)
+	{
+		printf("Input error, directory %s already exists.\n",dirname);
+		return -1;
+	}
+
 	// Go to parent's data
 	parent_data.datablocks = (int*)(inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
 
@@ -332,7 +340,6 @@ int cfs_mkdir(int fd,char *dirname)
 	return new_nodeid;
 }
 
-
 int cfs_touch(int fd,char *filename,touch_mode mode)
 {
 	int	ignore = 0;
@@ -357,14 +364,23 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 		parent_nodeid = get_parent(fd,filename,new_name);
 		if(parent_nodeid == -1)
 			return -1;
+	
+		// Go to parent's metadata
+		parent_mds = (MDS*) (inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+		// Check if parent is a directory
+		if(parent_mds->type != Directory)
+		{
+			printf("Input error, %s is not a directory.\n",inodeTable+parent_nodeid*inodeSize+sizeof(bool));
+			return -1;
+		}
+
 		// Check if file exists
 		if(traverse_cfs(fd,new_name,parent_nodeid) != -1)
 		{
-			printf("Input error, file '%s' already exists.\n",filename);
+			printf("Input error, file %s already exists.\n",filename);
 			return -1;
 		}
-		// Go to parent's metadata
-		parent_mds = (MDS*) (inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+
 		// Go to parent's data
 		parent_data.datablocks = (int*)(inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
 
@@ -395,7 +411,7 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 			// If parent directory has no datablocks available
 			if(parent_mds->datablocksCounter == sB.maxDirDatablockNum && numofEntities == sB.maxEntitiesPerBlock*sB.maxDirDatablockNum)
 			{
-				printf("Not enough space in parent directory to create file '%s'.\n",filename);
+				printf("Not enough space in parent directory to create file %s.\n",filename);
 				return -1;
 			}
 	
@@ -579,6 +595,8 @@ bool cfs_cd(int fileDesc, char *path) {
 
 		}
 		path_nodeId = traverse_cfs(fileDesc, path, start);
+		if(path_nodeId == -1)
+			return false;
 
 		free(initial_path);
 	} else {
@@ -710,10 +728,8 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path) {
 			current_filename = pop_minimum_string(&path_content_names);
 		}
 		if ((ls_modes[LS_A] == false && current_filename[0] != '.') || ls_modes[LS_A] == true) {
+			current_nodeid = traverse_cfs(fileDesc, current_filename, cfs_current_nodeid);
 			current_MDS = (MDS *) (inodeTable + current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-			if (current_MDS->type == Directory) {
-
-			}
 			if (ls_modes[LS_L] == true) {
 				char *creationTime = ctime(&current_MDS->creation_time);
 				char *accessTime = ctime(&current_MDS->access_time);
@@ -734,7 +750,7 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path) {
 		}
 		free(current_filename);
 	}
-	if (ls_modes[1] == true) {
+	if (ls_modes[LS_R] == true) {
 		char *temp = (char*) malloc(strlen(dirName)+1);
 		while (path_content != NULL) {
 			strcpy(temp, dirName);
@@ -922,6 +938,8 @@ bool cfs_cat(int fileDesc, string_List *sourceList, char *outputPath)
 		{
 			start = getPathStartId(source_name);
 			source_nodeid = traverse_cfs(fileDesc,source_name,start);
+			if(source_nodeid == -1)
+				return false;
 			source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
 			if(source_mds->type != File)
 			{
@@ -948,11 +966,17 @@ bool cfs_cat(int fileDesc, string_List *sourceList, char *outputPath)
 
 	for(int i=1; i<=listSize; i++)
 	{
-		source_name = pop_last_string(&sourceList,i);
+		source_name = pop_last_string(&sourceList);
 		start = getPathStartId(source_name);
 		source_nodeid = traverse_cfs(fileDesc,source_name,start);
+		if(source_nodeid == -1)
+		{
+			free(source_name);
+			return false;
+		}
 		source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
 		append_file(fileDesc,source_nodeid,output_nodeid);
+		free(source_name);
 	}
 
 	return true;
