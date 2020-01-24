@@ -149,3 +149,34 @@ char *pop_last_string(string_List** list)
     temp->next = NULL;
     return result;
 }
+
+char* get_stringNode(string_List** list,int n)
+{
+	if(list == NULL || *list == NULL)
+		return NULL;
+
+	int		i = 1;
+	string_List	*temp = *list;
+	while(temp != NULL && i<= n)
+	{
+		if(i == n)
+			return temp->item;
+
+		temp = temp->next;
+		i++;
+	}
+
+	return NULL;
+}
+
+int getLength(string_List *list)
+{
+    int counter = 0;
+    string_List *temp = list;
+    while (temp != NULL)
+    {
+        counter++;
+        temp = temp->next;
+    }
+    return counter;
+}

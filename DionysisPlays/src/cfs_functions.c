@@ -227,13 +227,14 @@ int traverse_cfs(int fd,char *filename,int start)
 	int		offset, i, move;
 	int		blocknum, datablocks_checked, dataCounter, j, ignore = 0;
 	char		*split;
-	char		path_name[sB.filenameSize];
+	char		*path_name;
 	char		*curr_name = (char*)malloc(sB.filenameSize*sizeof(char));
 	char		root[2];
 	MDS		*metadata, *parent_mds;
 	Datastream	data;
 
 	// 'path_name' will be used by strtok, so that 'filename' remains unchanged
+	path_name = (char*)malloc(strlen(filename)+1);
 	strcpy(path_name,filename);
 	// Get first entity in path
 	split = strtok(path_name,"/");
@@ -317,6 +318,7 @@ int traverse_cfs(int fd,char *filename,int start)
 			{
 				printf("Could not find path %s in cfs.\n",filename);
 				free(curr_name);
+				free(path_name);
 				return -1;
 			}
 		}
@@ -329,6 +331,7 @@ int traverse_cfs(int fd,char *filename,int start)
 			{
 				printf("Input error, %s is not a valid path.\n",filename);
 				free(curr_name);
+				free(path_name);
 				return -1;
 			}
 			// Else, it is the file we were looking for ('start' has already been appropriately updated)
@@ -340,6 +343,7 @@ int traverse_cfs(int fd,char *filename,int start)
 	}
 
 	free(curr_name);
+	free(path_name);
 	return start;
 }
 
@@ -445,4 +449,110 @@ int getEmptyBlock()
         sB.blockCounter++;
         return sB.blockCounter;
     }
+}
+
+int getPathStartId(char* path)
+{
+	int start;
+	char* initial_path = (char*)malloc(strlen(path+1));
+	if(path[0] == '/')
+	{
+		// Traversing cfs will start from the root (nodeid = 0)
+		start = 0;
+	}
+	else
+	{
+		// Get first entity in path
+		strcpy(initial_path,path);
+		char *start_dir = strtok(initial_path,"/");
+		// If path starts from current directory's parent
+		if(strcmp(start_dir,"..") == 0)
+		{
+			MDS *current_mds = (MDS *) (inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+			start = current_mds->parent_nodeid;
+		}
+		else	//if(!strcmp(split,".") || strcmp(split,"/"))
+		{
+			// If path starts from current directory
+			start = cfs_current_nodeid;
+		}
+	}
+
+	free(initial_path);
+	return start;
+}
+
+void replaceEntity(int fileDesc, int source_nodeid, int destination_nodeid)
+{	
+	MDS *source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	int *source_data = (int*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
+	int source_dataBlocksNum = source_mds->datablocksCounter;
+	MDS *destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	int *destination_data = (int*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
+//	int destination_dataBlocksNum = destination_mds->datablocksCounter;
+
+	int ignore;
+	int k = 0, j = 0;
+	bool blocksExpired = false;
+	int blockNum;
+	char buff[sB.blockSize];
+	for (int i=0; i < source_dataBlocksNum; i++) {
+		while (source_data[k] == -1)
+			k++;
+
+		if (blocksExpired == false) {
+			while (destination_data[j] == -1)
+				j++;
+			blockNum = destination_data[j];
+			j++;
+		} else {
+			blockNum = getEmptyBlock();
+			j = 0;
+			while (destination_data[j] != -1)
+				j++;
+			destination_data[j] = blockNum;
+			
+		}
+		
+		CALL(lseek(fileDesc,source_data[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		SAFE_READ(fileDesc,buff,0,sizeof(char),sB.blockSize);
+
+		CALL(lseek(fileDesc,blockNum*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		SAFE_WRITE(fileDesc,buff,0,sizeof(char),sB.blockSize);
+	}
+	destination_mds->datablocksCounter = source_dataBlocksNum;
+	destination_mds->size = source_mds->size;
+}
+
+void append_file(int fd,int source_nodeid,int output_nodeid)
+{
+	int		ignore = 0;
+	int		source_block, output_block;
+	int		source_dataCounter, output_dataCounter;
+	char		buffer[sB.blockSize];
+	MDS		*source_mds, *output_mds;
+	Datastream	source_data, output_data;
+
+	source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	source_dataCounter = source_mds->datablocksCounter;
+	source_data.datablocks = (int*) (source_mds + sizeof(MDS));
+	output_mds = (MDS*) (inodeTable + output_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	output_dataCounter = output_mds->datablocksCounter;
+	output_data.datablocks = (int*) (output_mds + sizeof(MDS));
+
+	for(int i=0; i<source_dataCounter; i++)
+	{
+		// Read i-th block from sourch file
+		source_block = source_data.datablocks[i];
+		CALL(lseek(fd,source_block*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		SAFE_READ(fd,buffer,0,sizeof(char),sB.blockSize);
+		// Write it to the respective block of the output file
+		output_block = getEmptyBlock();
+		output_data.datablocks[output_dataCounter+i] = output_block;
+		CALL(lseek(fd,output_block*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		SAFE_WRITE(fd,buffer,0,sizeof(char),sB.blockSize);
+	}
+
+	output_mds->datablocksCounter += source_dataCounter;
+	output_mds->size += source_mds->size;
 }

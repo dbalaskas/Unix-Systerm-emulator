@@ -194,6 +194,31 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
+				bool		appended;
+				char		*option_prev = NULL;
+				string_List	*sourceList = NULL;
+
+				option_prev = strtok_r(NULL," \t",&rest);
+				option = strtok_r(NULL," \t",&rest);
+				// At least to files required
+				if(option_prev == NULL || option == NULL)
+					printf("Input error, too few arguments.\n");
+
+				while(option_prev != NULL && option != NULL)
+				{
+					add_stringNode(&sourceList,option_prev);
+					option_prev = option;
+					option = strtok_r(NULL," \t",&rest);
+					if(option == NULL)
+					{
+						appended = cfs_cat(fileDesc,&sourceList,option_prev);
+						if(appended)
+							printf("List of sources appended to output file %s.\n",option_prev);
+						option_prev = NULL;
+					}
+				}
+
+				destroy_stringList(sourceList);
 			}
 		}
 		else if(!strcmp(command,"cfs_ln"))

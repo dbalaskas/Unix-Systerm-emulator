@@ -11,7 +11,7 @@ typedef struct superblock {
 	int nextSuperBlock;
 	int blockSize;
 	int filenameSize;
-	int maxFileSize;
+	unsigned int maxFileSize;
 	int maxFilesPerDir;
 	int maxFileDatablockNum;
 	int maxDirDatablockNum;
