@@ -1,3 +1,4 @@
 make cfs
-./bin/cfs
-cfs_workwith myfile.cfs
+rm a.cfs
+cp ./doc/a.cfs ./
+./bin/cfs < command_list

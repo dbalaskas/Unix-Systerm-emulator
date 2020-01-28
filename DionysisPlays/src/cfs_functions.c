@@ -86,7 +86,7 @@ void update_superBlock(int fileDesc)
 			// size_to_write must be a multiple of sizeof(int)
 			if(size_to_write % sizeof(int))
 				size_to_write -= size_to_write % sizeof(int);
-//			while(dataSize > 0)
+	//			while(dataSize > 0)
 			do {
 				// Write as many (non-empty) datablocks as possible in current block
 				while(writtenData*sizeof(int) < size_to_write)
@@ -551,4 +551,34 @@ void append_file(int fd,int source_nodeid,int output_nodeid)
 
 	output_mds->datablocksCounter += source_dataCounter;
 	output_mds->size += source_mds->size;
+}
+
+int getDir_inodes(int fd, int dir_nodeid, string_List **content)
+{
+	int 	ignore;
+	MDS 	*dir_mds = (MDS*) (inodeTable + dir_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	int 	*dir_data = (int*) inodeTable + dir_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS);
+	int 	 dir_dataBlocksNum = dir_mds->datablocksCounter;
+
+	char 	 fileName[sB.filenameSize];
+	int 	 contentCounter = 0;
+	int 	 pairCounter;
+	int 	 j = 0;
+	if(content != NULL) {
+		for (int i=0; i < dir_dataBlocksNum; i++) {
+			while (dir_data[j] != -1)
+				j++;
+
+			CALL(lseek(fd,dir_data[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_READ(fd,&pairCounter,0,sizeof(int),sizeof(int));
+			for (int k=0; k < pairCounter; k++) {
+				SAFE_READ(fd,fileName,0,sizeof(char),sB.filenameSize);
+				CALL(lseek(fd,dir_data[i]*sB.blockSize + sizeof(int) + k*(sB.filenameSize+sizeof(int)),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+
+				add_stringNode(content, fileName);
+			}
+			contentCounter += pairCounter;
+		}
+	}
+	return contentCounter;
 }

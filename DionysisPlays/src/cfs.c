@@ -186,6 +186,37 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
+				bool cp_modes[6];
+				string_List *sources = NULL;
+				char * destination;
+				for (int i=0; i<6;i++)
+					cp_modes[i]=false;
+					
+				option = strtok_r(NULL," \t",&rest);
+
+				while(option != NULL)
+				{
+					if (strcmp(option, "-r") == 0) {
+						cp_modes[CP_R] = true;
+					} else if (strcmp(option, "-i") == 0) {
+						cp_modes[CP_I] = true;
+					} else if (strcmp(option, "-R") == 0) {
+						cp_modes[CP_RR] = true;
+					} else {
+						add_stringNode(&sources, option);
+					}
+
+					option = strtok_r(NULL," \t",&rest);
+				}
+				if (sources == NULL) {
+					printf("cp: missing file operand\n");
+				} else {
+					destination = pop_string(&sources);
+					if (sources == NULL) 
+						printf("cp: missing destination file operand after '%s'\n", destination);
+					else
+						cfs_cp(fileDesc, cp_modes, sources, destination);
+				}
 			}
 		}
 		else if(!strcmp(command,"cfs_cat"))
