@@ -7,6 +7,8 @@ void addNode(List**,int);
 int pop(List**);
 void printList(List*);
 void destroyList(List*);
+int pop_minimum_Node(List**);
+int pop_last_Node(List**);
 
 typedef struct string_List{
     char *item;

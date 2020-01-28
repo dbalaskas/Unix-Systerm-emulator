@@ -13,7 +13,7 @@ int main(void) {
 
 	printCommands();
 	do{
-		printf("\nCFS:");
+		printf("CFS:");
 		fflush( stdout );
 		if (open_cfs == true) {
 			cfs_pwd();
@@ -24,6 +24,9 @@ int main(void) {
 		CALL(fgets(line,sizeof(line),stdin),NULL,NULL,6,ignore);
 		temp = strtok(line,"\n");
 		rest = temp;
+		if(rest == NULL)
+			continue;
+		
 		command = strtok_r(temp," \t",&rest);
 		if(command == NULL) {
 			continue;
@@ -178,6 +181,7 @@ int main(void) {
 					while (directories != NULL)
 						cfs_ls(fileDesc, ls_modes, pop_last_string(&directories));
 				}
+				printf("\n");
 			}
 		}
 		else if(!strcmp(command,"cfs_cp"))
@@ -403,5 +407,5 @@ void printCommands(){
 		"15. cfs_man <COMMAND>\n"
 		"16. cfs_close\n"
 		"17. help\n"
-		"18. cfs_exit\n");
+		"18. cfs_exit\n\n");
 }

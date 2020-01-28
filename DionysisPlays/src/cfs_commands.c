@@ -699,9 +699,9 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path) {
 			CALL(lseek(fileDesc,path_data[dataStreamIndex]*sB.blockSize + sizeof(int) + j*(sB.filenameSize+sizeof(int)),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 			SAFE_READ(fileDesc,current_filename,0,sizeof(char),sB.filenameSize);
 			SAFE_READ(fileDesc,&current_nodeid,0,sizeof(int),sizeof(int));
-			if(strcmp(current_filename,".") && strcmp(current_filename,".."))
-				addNode(&path_content, current_nodeid);
 			current_MDS = (MDS *) (inodeTable + current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+			if(strcmp(current_filename,".") && strcmp(current_filename,"..") && current_MDS->type == Directory)
+				addNode(&path_content, current_nodeid);
 			if ((ls_modes[LS_D] == true && current_MDS->type == Directory) || (ls_modes[LS_H] == true && current_MDS->type == Link) || (ls_modes[LS_D] == false && ls_modes[LS_H] == false))
 				add_stringNode(&path_content_names, current_filename);
 		}
@@ -727,7 +727,7 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path) {
 			current_filename = pop_minimum_string(&path_content_names);
 		}
 		if ((ls_modes[LS_A] == false && current_filename[0] != '.') || ls_modes[LS_A] == true) {
-			current_nodeid = traverse_cfs(fileDesc, current_filename, cfs_current_nodeid);
+			current_nodeid = traverse_cfs(fileDesc, current_filename, path_nodeId);
 			current_MDS = (MDS *) (inodeTable + current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
 			if (ls_modes[LS_L] == true) {
 				char *creationTime = ctime(&current_MDS->creation_time);
@@ -751,20 +751,23 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path) {
 	}
 	if (ls_modes[LS_R] == true) {
 		char *temp = (char*) malloc(strlen(dirName)+1);
+		int tempSize = strlen(temp);
+		int dirPathSize;
 		while (path_content != NULL) {
 			strcpy(temp, dirName);
-			current_nodeid = pop(&path_content);
+			current_nodeid = pop_last_Node(&path_content);
 			current_filename = inodeTable + current_nodeid*inodeSize + sizeof(bool);
 			current_MDS = (MDS *) (inodeTable + current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-			if (current_MDS->type == Directory && current_MDS->nodeid != path_nodeId && current_MDS->nodeid != path_MDS->parent_nodeid) {
-				printf("\n");
-				int dirPathSize = strlen(temp) + strlen(current_filename) + 2;
-				temp = realloc(temp, dirPathSize);
+			// if (current_MDS->type == Directory && current_MDS->nodeid != path_nodeId && current_MDS->nodeid != path_MDS->parent_nodeid) {
+				dirPathSize = strlen(temp) + strlen(current_filename) + 2;
+				if (tempSize < dirPathSize)
+					temp = realloc(temp, dirPathSize);
 				strcat(temp, "/");
 				strcat(temp, current_filename);
 				
+				printf("\n");
 				cfs_ls(fileDesc, ls_modes, temp);
-			}
+			// }
 		}
 		free(temp);
 	}
@@ -848,6 +851,7 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 						// destination_path = (char*) malloc(strlen(destination)+strlen(source_name)+2);
 						string_List **directory_inodeList = NULL;
 						getDir_inodes(fileDesc, destination_nodeid, directory_inodeList);
+						cfs_mkdir(fileDesc, destination_path);
 						cfs_cp(fileDesc, cp_modes, *directory_inodeList, destination_path);
 						continue;
 					}
@@ -882,7 +886,7 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 		//--------------------------------------------------------------------------------
 		// If mode -i is enabled ask if users want to overwrite th destination.
 		if (cp_modes[CP_I]) {
-			printf("cp: overwrite '%s/%s'? (y|n)", destination, source_name);
+			printf("cp: You want to copy '%s' to '%s'? (y|n)", source_path,destination_path);
 			//...
 			// If he doesn't accept, do not copy.
 			if (answer == 'n' || answer == 'N')
