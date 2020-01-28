@@ -1,11 +1,3 @@
-cfs_workwith a.cfs
+cfs_workwith test_noClose.cfs
 cfs_ls 
-cfs_ls -u
-
-
-cfs_ls -r
-cfs_ls -u -r
-
-
-
 cfs_exit

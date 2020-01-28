@@ -86,7 +86,7 @@ void update_superBlock(int fileDesc)
 			// size_to_write must be a multiple of sizeof(int)
 			if(size_to_write % sizeof(int))
 				size_to_write -= size_to_write % sizeof(int);
-	//			while(dataSize > 0)
+//			while(dataSize > 0)
 			do {
 				// Write as many (non-empty) datablocks as possible in current block
 				while(writtenData*sizeof(int) < size_to_write)
@@ -315,7 +315,6 @@ int traverse_cfs(int fd,char *filename,int start)
 			// If entity wasn't found
 			if(i == sB.maxFileDatablockNum || datablocks_checked == metadata->datablocksCounter)
 			{
-				printf("Path '%s' does not exist in cfs yet.\n",filename);
 				free(curr_name);
 				return -1;
 			}
@@ -327,7 +326,6 @@ int traverse_cfs(int fd,char *filename,int start)
 			// But there is another entity in path
 			if(split != NULL)
 			{
-				printf("Input error, '%s' is not a valid path.\n",filename);
 				free(curr_name);
 				return -1;
 			}
@@ -358,7 +356,7 @@ int getEmptyBlock()
 int getPathStartId(char* path)
 {
 	int start;
-	char *initial_path = (char*) malloc(strlen(path)+1);
+	char initial_path[strlen(path)+1];
 	if(path[0] == '/')
 	{
 		// Traversing cfs will start from the root (nodeid = 0)
@@ -381,7 +379,7 @@ int getPathStartId(char* path)
 			start = cfs_current_nodeid;
 		}
 	}
-	free(initial_path);
+
 	return start;
 }
 
@@ -432,13 +430,12 @@ int get_parent(int fd, char *path,char *new_name)
 	int		start;
 	int		parent_nodeid;
 	char		*split, *temp;
- 	char		*parent_name, *initial_path;
+ 	char		*parent_name, initial_path[strlen(path)+1];
 	int 		parent_name_Size;
 	MDS		*current_mds;
 
 	CALL(lseek(fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 
-	initial_path = (char*)malloc(strlen(path)+1);
 	strcpy(initial_path,path);
 	// If path starts with "/"
 	if(!strncmp(path,"/",1))
@@ -480,7 +477,6 @@ int get_parent(int fd, char *path,char *new_name)
 	if (split == NULL) {
 		printf("Input error, root was given as new entity.\n");
 		free(parent_name);
-		free(initial_path);
 		return -1;
 	}
 
@@ -505,7 +501,6 @@ int get_parent(int fd, char *path,char *new_name)
 	if(strlen(split)+1 > sB.filenameSize) {
 		printf("Input error, too long directory name.\n");
 		free(parent_name);
-		free(initial_path);
 		return -1;
 	}
 
@@ -514,8 +509,13 @@ int get_parent(int fd, char *path,char *new_name)
 		strcpy(new_name,split);
 	// Find parent directoy in cfs (meaning in inodeTable)
 	parent_nodeid = traverse_cfs(fd,parent_name,start);
+	if(parent_nodeid == -1)
+	{
+		printf("Path %s could not be found in cfs.\n",parent_name);
+		free(parent_name);
+		return -1;
+	}
 	free(parent_name);
-	free(initial_path);
 
 	return parent_nodeid;
 }
@@ -553,32 +553,43 @@ void append_file(int fd,int source_nodeid,int output_nodeid)
 	output_mds->size += source_mds->size;
 }
 
-int getDir_inodes(int fd, int dir_nodeid, string_List **content)
+int getDirEntitiesNum(int fileDesc,char *path)
 {
-	int 	ignore;
-	MDS 	*dir_mds = (MDS*) (inodeTable + dir_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-	int 	*dir_data = (int*) inodeTable + dir_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS);
-	int 	 dir_dataBlocksNum = dir_mds->datablocksCounter;
+	int		ignore = 0;
+	int		start, nodeid;
+	int		counter, dataCounter;
+	MDS		*dir_mds;
+	Datastream	data;
 
-	char 	 fileName[sB.filenameSize];
-	int 	 contentCounter = 0;
-	int 	 pairCounter;
-	int 	 j = 0;
-	if(content != NULL) {
-		for (int i=0; i < dir_dataBlocksNum; i++) {
-			while (dir_data[j] != -1)
-				j++;
+	// Find the nodeid of the first entity in path
+	start = getPathStartId(path);
+	// Get the nodeid of the entity the path leads to
+	nodeid = traverse_cfs(fileDesc,path,start);
+	// If path was invalid
+	if(nodeid == -1)
+	{
+		printf("Path %s could not be found in cfs.\n",path);
+		return false;
+	}
+	// Get directory's metadata
+	dir_mds = (MDS*) (inodeTable + nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	if(dir_mds->type != Directory)
+	{
+		printf("Input error, path %s is not a directory.\n",inodeTable+nodeid*inodeSize+sizeof(bool));
+		return false;
+	}
+	data.datablocks = (int*) (inodeTable + nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
 
-			CALL(lseek(fd,dir_data[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-			SAFE_READ(fd,&pairCounter,0,sizeof(int),sizeof(int));
-			for (int k=0; k < pairCounter; k++) {
-				SAFE_READ(fd,fileName,0,sizeof(char),sB.filenameSize);
-				CALL(lseek(fd,dir_data[i]*sB.blockSize + sizeof(int) + k*(sB.filenameSize+sizeof(int)),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-
-				add_stringNode(content, fileName);
-			}
-			contentCounter += pairCounter;
+	counter = 0;
+	for(int i=0; i<(sB.maxFileDatablockNum); i++)
+	{
+		if(data.datablocks[i] != -1)
+		{
+			CALL(lseek(fileDesc,data.datablocks[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_READ(fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
+			counter += dataCounter;
 		}
 	}
-	return contentCounter;
+
+	return counter;
 }

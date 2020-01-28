@@ -11,7 +11,7 @@
 typedef enum {false, true} 							bool;
 typedef enum {CRE, ACC, MOD} 						touch_mode;
 typedef enum {LS_A, LS_R, LS_L, LS_U, LS_D, LS_H} 	ls_mode;
-typedef enum {CP_I, CP_R, CP_RR}			 		cp_mode;
+typedef enum {CP_I, CP_R, CP_L}			 			cp_mode;
 typedef enum {RM_I, RM_R}		 					rm_mode;	
 
 #define CALL(call,error,errString,errNum,returnVal)								\
@@ -55,4 +55,4 @@ int get_parent(int,char*,char*);
 int getPathStartId(char*);
 void replaceEntity(int,int,int);
 void append_file(int,int,int);
-int getDir_inodes(int, int, string_List **);
+int getDirEntitiesNum(int,char*);

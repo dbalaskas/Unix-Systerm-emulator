@@ -26,7 +26,6 @@ int main(void) {
 		rest = temp;
 		if(rest == NULL)
 			continue;
-		
 		command = strtok_r(temp," \t",&rest);
 		if(command == NULL) {
 			continue;
@@ -190,37 +189,6 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
-				bool cp_modes[6];
-				string_List *sources = NULL;
-				char * destination;
-				for (int i=0; i<6;i++)
-					cp_modes[i]=false;
-					
-				option = strtok_r(NULL," \t",&rest);
-
-				while(option != NULL)
-				{
-					if (strcmp(option, "-r") == 0) {
-						cp_modes[CP_R] = true;
-					} else if (strcmp(option, "-i") == 0) {
-						cp_modes[CP_I] = true;
-					} else if (strcmp(option, "-R") == 0) {
-						cp_modes[CP_RR] = true;
-					} else {
-						add_stringNode(&sources, option);
-					}
-
-					option = strtok_r(NULL," \t",&rest);
-				}
-				if (sources == NULL) {
-					printf("cp: missing file operand\n");
-				} else {
-					destination = pop_string(&sources);
-					if (sources == NULL) 
-						printf("cp: missing destination file operand after '%s'\n", destination);
-					else
-						cfs_cp(fileDesc, cp_modes, sources, destination);
-				}
 			}
 		}
 		else if(!strcmp(command,"cfs_cat"))
@@ -288,6 +256,33 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
+				bool		imported;
+				char		*option_prev = NULL;
+				string_List	*sourceList = NULL;
+
+				option_prev = strtok_r(NULL," \t",&rest);
+				option = strtok_r(NULL," \t",&rest);
+				// At least to files required
+				if(option_prev == NULL || option == NULL)
+					printf("Input error, too few arguments.\n");
+
+				while(option_prev != NULL && option != NULL)
+				{
+					add_stringNode(&sourceList,option_prev);
+					option_prev = option;
+					option = strtok_r(NULL," \t",&rest);
+					if(option == NULL)
+					{
+						imported = cfs_import(fileDesc,sourceList,option_prev);
+						if(imported)
+						{
+							printf("List of sources imported to output directory %s.\n",option_prev);
+							sourceList = NULL;
+						}
+						option_prev = NULL;
+					}
+				}
+				destroy_stringList(sourceList);
 			}
 		}
 		else if(!strcmp(command,"cfs_export"))
