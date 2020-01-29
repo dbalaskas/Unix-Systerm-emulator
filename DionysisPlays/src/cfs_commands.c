@@ -532,8 +532,8 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 
 int cfs_ln(int fileDesc,char* source_path,char* destination)
 {
-	int 	 source_nodeid;
 	char 	*source_name;
+	int 	 source_nodeid;
 	MDS		*source_mds;
 
 	int 	 directory_nodeid;
@@ -541,6 +541,7 @@ int cfs_ln(int fileDesc,char* source_path,char* destination)
 	char	 destination_path[strlen(destination) + sB.filenameSize + 2];
 	char	 destination_name[sB.filenameSize];
 	int		 destination_nodeid;
+	MDS		*destination_mds;
 
 	// Check if source exists.
 	source_nodeid = traverse_cfs(fileDesc, source_path, getPathStartId(source_path));
@@ -551,7 +552,7 @@ int cfs_ln(int fileDesc,char* source_path,char* destination)
 	// Check if source is file.
 	source_name = inodeTable + source_nodeid*inodeSize + sizeof(bool);
 	source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-	if (source_mds->type) {
+	if (source_mds->type == Directory) {
 		printf("ln: cannot create link to directory\n");
 		return -1;
 	}
@@ -563,6 +564,11 @@ int cfs_ln(int fileDesc,char* source_path,char* destination)
 	}
 	destination_nodeid = traverse_cfs(fileDesc,destination_name,directory_nodeid);
 	strcpy(destination_path, destination);
+	if (destination_nodeid != -1) {
+		destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	} else {	// destination_nodeid == -1
+
+	}
 	// Create
 
 	// return destination_nodeid;
@@ -918,7 +924,6 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 						if (cp_modes[CP_I] == true) {
 							printf("cp: You want to overwrite '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
 							fgets(line, 100, stdin);
-							printf("strlen of line = %d.\n", strlen(line));
 							if (line != NULL){
 								answer = strtok(line, " \n\t");
 							}
@@ -935,7 +940,6 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 						if (cp_modes[CP_I] == true) {
 							printf("cp: You want to overwrite '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
 							fgets(line, 100, stdin);
-							printf("strlen of line = %d.\n", strlen(line));
 							if (line != NULL){
 								answer = strtok(line, " \n\t");
 							}
@@ -962,7 +966,6 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 					if (cp_modes[CP_I] == true) {
 						printf("cp: You want to overwrite '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
 						fgets(line, 100, stdin);
-						printf("strlen of line = %d.\n", strlen(line));
 						if (line != NULL){
 							answer = strtok(line, " \n\t");
 						}
@@ -1070,7 +1073,6 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 						if (mv_modes[MV_I] == true) {
 							printf("mv: You want to overide '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
 							fgets(line, 100, stdin);
-							printf("strlen of line = %d.\n", strlen(line));
 							if (line != NULL){
 								answer = strtok(line, " \n\t");
 							}
@@ -1088,7 +1090,6 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 						if (mv_modes[MV_I] == true) {
 							printf("mv: You want to overwrite '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
 							fgets(line, 100, stdin);
-							printf("strlen of line = %d.\n", strlen(line));
 							if (line != NULL){
 								answer = strtok(line, " \n\t");
 							}
@@ -1116,7 +1117,6 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 					if (mv_modes[MV_I] == true) {
 						printf("mv: You want to overwrite '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
 						fgets(line, 100, stdin);
-						printf("strlen of line = %d.\n", strlen(line));
 						if (line != NULL){
 							answer = strtok(line, " \n\t");
 						}

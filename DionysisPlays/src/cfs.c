@@ -197,7 +197,7 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
-				bool cp_modes[6];
+				bool cp_modes[cp_mode_Num];
 				string_List *sources = NULL;
 				char * destination;
 				for (int i=0; i<cp_mode_Num;i++)
@@ -275,6 +275,10 @@ int main(void) {
 		}
 		else if(!strcmp(command,"cfs_mv"))
 		{
+			if(open_cfs == false)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
 				bool mv_modes[mv_mode_Num];
 				string_List *sources = NULL;
 				char * destination;
