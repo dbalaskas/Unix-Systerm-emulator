@@ -193,6 +193,7 @@ int cfs_workwith(char *filename)
 		SAFE_READ(fd,&blockNum,0,sizeof(int),sizeof(int));
 		// Push it in List structure
        		addNode(&holes, blockNum);
+		sB.ListSize++;
 		// Space in current block is reduced by one list node
 		freeSpaces -= sizeof(int);
 	}
@@ -909,6 +910,153 @@ bool cfs_cp(int fileDesc, cp_mode *cp_modes, string_List *sourceList, char *dest
 	return true;
 }
 
+bool cfs_rm(int fileDesc, bool *modes, char *dirname)
+{
+	int		move, ignore = 0;
+	int		start, nodeid;
+	int		dataCounter, checked = 0;
+	MDS		*metadata;
+	Datastream	data;
+
+	// Find the nodeid of the first entity in path 'dirname'
+	start = getPathStartId(dirname);
+	// Get the nodeid of the entity the destination path leads to
+	nodeid = traverse_cfs(fileDesc,dirname,start);
+	// If destination parth is invalid
+	if(nodeid == -1)
+	{
+		printf("Path %s could not be found in cfs.\n",dirname);
+		return false;
+	}
+
+	metadata = (MDS*) (inodeTable + nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	data.datablocks = (int*) (inodeTable + nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
+	// If it is not a directory
+	if(metadata->type != Directory)
+	{
+		printf("Input error, %s is not a directory.\n",dirname);
+		return false;
+	}
+
+	char		content_name[sB.filenameSize];
+	int		content_nodeid, newCounter;
+	MDS		*content_mds;
+	Datastream	content_data;
+	// For directory's each datablock
+	for(int i=0; i<sB.maxFileDatablockNum; i++)
+	{
+		// If datablock has contents
+		if(data.datablocks[i] != -1)
+		{	// Get number of entities in current datablock
+			CALL(lseek(fileDesc,data.datablocks[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_READ(fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
+			// Number of entities in datablock after remove is completed
+			newCounter = 0;
+			// For every entity in datablock
+			for(int j=0; j<dataCounter; j++)
+			{
+				move = data.datablocks[i]*sB.blockSize + sizeof(int) + j*(sB.filenameSize + sizeof(int));
+				CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				// Get current entity's name
+				SAFE_READ(fileDesc,content_name,0,sizeof(char),sB.filenameSize);
+				// If it is not the current or parent entity
+				if(strcmp(content_name,".") && strcmp(content_name,".."))
+				{	// If '-i' was given as an argument
+					if(modes[RM_I] == true)
+					{	// Ask user for confirmation
+						char	answer[4];
+						printf("Are you sure you want to delete item %s ?(yes/no):\n",content_name);
+						scanf("%s",answer);
+						// If user said no, go to the next entity
+						if(!strcmp(answer,"no"))
+						{
+							newCounter++;
+							continue;
+						}
+					}
+					// Get entity's nodeid
+					SAFE_READ(fileDesc,&content_nodeid,0,sizeof(int),sizeof(int));
+					content_mds = (MDS*) (inodeTable + content_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+					content_data.datablocks = (int*) (inodeTable + content_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
+					// If it is a file, it will be removed
+					if(content_mds->type == File)
+					{	// Push allocated datablocks in holeList
+						for(int k=0; k<sB.maxFileDatablockNum; k++)
+							if(content_data.datablocks[k] != -1)
+							{
+								addNode(&holes,content_data.datablocks[k]);
+								sB.ListSize++;
+							}
+					}
+					else	// If it is a directory
+					{	// If it has contnents
+						if(content_mds->datablocksCounter != 0)
+						{	// If '-r' was given as an argument, it will be removed
+							if(modes[RM_R] == true)
+							{
+								char	recursion_name[strlen(dirname)+sB.filenameSize+2];
+								strcpy(recursion_name,dirname);
+								strcat(recursion_name,"/");
+								strcat(recursion_name,content_name);
+								cfs_rm(fileDesc,modes,recursion_name);
+							}
+							// Else, it will not be removed. If there is a hole inside datablock, fill it
+							else if(j > newCounter)
+							{
+								move = data.datablocks[i]*sB.blockSize + sizeof(int) + newCounter*(sB.filenameSize+sizeof(int));
+								CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+								SAFE_WRITE(fileDesc,content_name,0,sizeof(char),sB.filenameSize);
+								SAFE_WRITE(fileDesc,&content_nodeid,0,sizeof(int),sizeof(int));
+								// Increase newCounter and go to the next entity
+								newCounter++;
+								continue;
+							}
+							else
+							{
+								newCounter++;
+								continue;
+							}
+						}
+					}
+					// If it is a file or an empty directory, remove it
+					*(bool*) (inodeTable + content_nodeid*inodeSize) = false;
+					metadata->size -= sB.filenameSize + sizeof(int);
+					sB.nodeidCounter--;
+					// If it is the last in inodeTable do not keep the hole (inner holes should be maintained)
+					if(content_nodeid == sB.iTableCounter)
+						sB.iTableCounter--;
+				}
+				// If it is the current or parent entity
+				else
+					newCounter++;
+			}
+			// If datablock has still contents (except for current and parent entity), update counter
+			if(newCounter > 2)
+			{
+				CALL(lseek(fileDesc,data.datablocks[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				SAFE_WRITE(fileDesc,&newCounter,0,sizeof(int),sizeof(int));
+			}
+			// Else, add it to holeList and remove it from directory's data
+			else
+			{
+				addNode(&holes,data.datablocks[i]);
+				sB.ListSize++;
+				data.datablocks[i] = -1;
+				metadata->datablocksCounter--;
+				checked--;
+			}
+
+			checked++;
+		}
+
+		// If all directory's contents have been checked
+		if(checked == metadata->datablocksCounter)
+			break;
+	}
+
+	return true;
+}
+
 bool cfs_cat(int fileDesc, string_List *sourceList, char *outputPath)
 {
 	int		start;
@@ -1001,7 +1149,7 @@ bool cfs_import(int fileDesc,string_List *sourceList,char *destPath)
 	int		start;
 	int		source_nodeid, dest_nodeid, dest_entities;
 	char		*initial;
-	char		new_path[strlen(destPath)+1+sB.filenameSize];
+	char		new_path[strlen(destPath)+sB.filenameSize+2];
 	MDS		*source_mds, *dest_mds;
 	Datastream	data;
 
@@ -1036,7 +1184,6 @@ bool cfs_import(int fileDesc,string_List *sourceList,char *destPath)
 	}
 
 	int		move;
-	char		dirBuffer[sB.filenameSize+sizeof(int)];
 	char		fileBuffer[sB.blockSize];
 	char		*split, *temp;
 	struct stat	entity;
@@ -1080,6 +1227,7 @@ bool cfs_import(int fileDesc,string_List *sourceList,char *destPath)
 			{
 				DIR		*dir;
 				struct dirent	*content;
+				char		content_path[strlen(source_name)+sB.filenameSize+2];
 
 				if((dir = opendir(source_name)) == NULL)
 				{
@@ -1099,9 +1247,15 @@ bool cfs_import(int fileDesc,string_List *sourceList,char *destPath)
 				string_List	*contentList = NULL;
 				while((content = readdir(dir)) != NULL)
 				{
-					add_stringNode(&contentList,content->d_name);
-					cfs_import(fileDesc,contentList,new_path);
-					destroy_stringList(contentList);
+					if(strcmp(content->d_name,".") && strcmp(content->d_name,".."))
+					{
+						strcpy(content_path,source_name);
+						strcat(content_path,"/");
+						strcat(content_path,content->d_name);
+						add_stringNode(&contentList,content_path);
+						cfs_import(fileDesc,contentList,new_path);
+						contentList = NULL;
+					}
 				}
 				closedir(dir);
 			}
@@ -1124,8 +1278,8 @@ bool cfs_import(int fileDesc,string_List *sourceList,char *destPath)
 					free(source_name);
 					return false;
 				}
-				source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool));
-				data.datablocks = (int*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sizeof(MDS));
+				source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+				data.datablocks = (int*) (inodeTable + source_nodeid*inodeSize +sizeof(bool) + sB.filenameSize + sizeof(MDS));
 
 				// Get file's size
 				source_end = entity.st_size;
@@ -1152,14 +1306,14 @@ bool cfs_import(int fileDesc,string_List *sourceList,char *destPath)
 					if(current < source_end)
 					{
 						size_to_read = (sB.blockSize > (source_end-current)) ? (source_end-current) : (sB.blockSize);
-						SAFE_READ(source_fd,dirBuffer,0,sizeof(char),size_to_read);
+						SAFE_READ(source_fd,fileBuffer,0,sizeof(char),size_to_read);
 					}
 					// Reached end of directory
 					else
 						break;
 				}
 				close(source_fd);
-//				dest_mds->size += 
+				source_mds->size += source_end;
 			}
 			free(source_name);
 		}
@@ -1211,7 +1365,8 @@ int cfs_create(char *filename,int bSize,int nameSize,unsigned int maxFSize,int m
 	// Every datablock of a directory contains some pairs of (filename+nodeid) for the directory's contents and a counter of those pairs
 	sB.maxEntitiesPerBlock = (sB.blockSize - sizeof(int)) / (sB.filenameSize + sizeof(int));
 	sB.maxFileDatablockNum = (sB.maxFileSize) / (sB.blockSize);
-	if((sB.blockSize - sizeof(int)) % (sB.filenameSize + sizeof(int)))
+//	if((sB.blockSize - sizeof(int)) % (sB.filenameSize + sizeof(int)))
+	if(sB.maxFileSize % sB.blockSize)
 		sB.maxFileDatablockNum++;
 	sB.maxDirDatablockNum = (sB.maxFilesPerDir + 2) / sB.maxEntitiesPerBlock;
 	if((sB.maxFilesPerDir + 2) % sB.maxEntitiesPerBlock)

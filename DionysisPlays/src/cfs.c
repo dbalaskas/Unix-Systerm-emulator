@@ -148,6 +148,7 @@ int main(void) {
 			else
 			{
 				bool ls_modes[6];
+				char *dirname;
 				string_List *directories = NULL;
 				for (int i=0; i<6;i++)
 					ls_modes[i]=false;
@@ -177,8 +178,12 @@ int main(void) {
 				if (directories == NULL) {
 					cfs_ls(fileDesc, ls_modes, NULL);
 				} else {
-					while (directories != NULL)
-						cfs_ls(fileDesc, ls_modes, pop_last_string(&directories));
+					while (directories != NULL) {
+						if((dirname = pop_last_string(&directories)) != NULL) {
+							cfs_ls(fileDesc, ls_modes, dirname);
+							free(dirname);
+						}
+					}
 				}
 				printf("\n");
 			}
@@ -248,6 +253,46 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
+				bool		rm_modes[2];
+				bool		removed;
+				char		*dirname;
+				string_List	*directories = NULL;
+				for (int i=0; i<2;i++)
+					rm_modes[i] = false;
+
+				option = strtok_r(NULL," \t",&rest);
+
+				while(option != NULL)
+				{
+					if(!strcmp(option,"-i"))
+					{
+						rm_modes[RM_I] = true;
+					}
+					else if(!strcmp(option,"-r"))
+					{
+						rm_modes[RM_R] = true;
+					}
+					else
+						add_stringNode(&directories, option);
+
+					option = strtok_r(NULL," \t",&rest);
+				}
+				if(directories == NULL)
+					printf("Input error, please give a directory name.\n");
+				else
+				{
+					while (directories != NULL)
+					{
+						if((dirname = pop_last_string(&directories)) != NULL)
+						{
+							removed = cfs_rm(fileDesc,rm_modes,dirname);
+							if(removed)
+								printf("Removed %s's contents from cfs.\n",dirname);
+
+							free(dirname);
+						}
+					}
+				}
 			}
 		}
 		else if(!strcmp(command,"cfs_import"))
@@ -365,8 +410,20 @@ int main(void) {
 				printf("There is no cfs file opened.\n");
 			}
 		}
-		else if(!strcmp(command,"cfs_man"))
+		else if(!strcmp(command,"cfs_print"))
 		{
+			if(open_cfs == false)
+				printf("Cfs closed, try cfs_workwith first.\n");
+			else
+			{
+				option = strtok_r(NULL," \t",&rest);
+				if((rest != NULL) && (strcmp(rest,"")))
+					printf("Input error, too many arguments.\n");
+				else if(option == NULL)
+					printf("Input error, please give a path.\n");
+				else
+					print_data(fileDesc,option);
+			}
 		}
 		else if(!strcmp(command,"help"))
 		{
@@ -399,7 +456,7 @@ void printCommands(){
 		"12. cfs_import <SOURCES> ... <DIRECTORY>\n"
 		"13. cfs_export <SOURCES> ... <DIRECTORY>\n"
 		"14. cfs_create <OPTIONS> <FILE>\n"
-		"15. cfs_man <COMMAND>\n"
+		"15. cfs_print <PATH>\n"
 		"16. cfs_close\n"
 		"17. help\n"
 		"18. cfs_exit\n\n");

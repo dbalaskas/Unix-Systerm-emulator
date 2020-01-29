@@ -55,4 +55,6 @@ int get_parent(int,char*,char*);
 int getPathStartId(char*);
 void replaceEntity(int,int,int);
 void append_file(int,int,int);
+int getDir_inodes(int,int,string_List**);
 int getDirEntitiesNum(int,char*);
+void print_data(int,char*);

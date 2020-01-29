@@ -52,6 +52,9 @@ void update_superBlock(int fileDesc)
 	MDS		*metadata;
 	Datastream	data;
 
+	// Number of blocks used to write metadata
+	int		usedBlocks = 0;
+
 	// For every element of the inodeTable
 	for(int j=0; j<sB.iTableCounter; j++) {
 	        // If it has content (flag==true)
@@ -161,15 +164,34 @@ void update_superBlock(int fileDesc)
 					if(size_to_write % sizeof(int))
 						size_to_write -= size_to_write % sizeof(int);
 				}
+				// Another block was used for metadata
+				usedBlocks++;
 			} while(dataSize > 0);
 	      	}
 	}
-    	// Write the holeList on the file
-    	int	hole;
+	// If the blocks used for metadata are less than the ones before (after previous cfs close)
+	if(usedBlocks < sB.iTableBlocksNum)
+	{	// Add all useless blocks in holeList
+		for(int i=0; i<(sB.iTableBlocksNum-usedBlocks); i++)
+		{
+			addNode(&holes,iblock[usedBlocks+i]);
+			// Increase list's size
+			sB.ListSize++;
+			// Decrease number of blocks needed for the iTable
+			sB.iTableBlocksNum--;
+			// Increase free space in overflow block by an int
+			freeSpaces += sizeof(int);
+		}
+	}
 
+//	// If current overflow block has its own overflow but it will not be needed anymore (iTable and List require less blocks than before)
+//	if(overflow_next != -1)
+
+	// Write the holeList on the file
+    	int	hole;
 	// As long as List is not empty, find and go to the right block to write the list
     	for (int i=0; i<sB.ListSize;i++) {
-        	hole = pop(&holes);
+        	hole = pop_last_Node(&holes);
 		// If there is space in current block
         	if (freeSpaces > 0) {
 				move = overflow_block*sB.blockSize + (sB.blockSize - freeSpaces);
@@ -188,9 +210,8 @@ void update_superBlock(int fileDesc)
 				{
 					overflow_block = getEmptyBlock();
 					move = overflow_block*sB.blockSize;
-							CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-
-							overflow_next = -1;
+					CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+					overflow_next = -1;
 					SAFE_WRITE(fileDesc,&overflow_next,0,sizeof(int),sizeof(int));
 				}
 
@@ -531,10 +552,10 @@ void append_file(int fd,int source_nodeid,int output_nodeid)
 
 	source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
 	source_dataCounter = source_mds->datablocksCounter;
-	source_data.datablocks = (int*) (source_mds + sizeof(MDS));
+	source_data.datablocks = (int*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
 	output_mds = (MDS*) (inodeTable + output_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
 	output_dataCounter = output_mds->datablocksCounter;
-	output_data.datablocks = (int*) (output_mds + sizeof(MDS));
+	output_data.datablocks = (int*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
 
 	for(int i=0; i<source_dataCounter; i++)
 	{
@@ -551,6 +572,36 @@ void append_file(int fd,int source_nodeid,int output_nodeid)
 
 	output_mds->datablocksCounter += source_dataCounter;
 	output_mds->size += source_mds->size;
+}
+
+int getDir_inodes(int fd, int dir_nodeid, string_List **content)
+{
+	int 	ignore;
+	MDS 	*dir_mds = (MDS*) (inodeTable + dir_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	int 	*dir_data = (int*) inodeTable + dir_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS);
+	int 	 dir_dataBlocksNum = dir_mds->datablocksCounter;
+
+	char 	 fileName[sB.filenameSize];
+	int 	 contentCounter = 0;
+	int 	 pairCounter;
+
+	for (int i=0; i < dir_dataBlocksNum; i++) {
+		if(dir_data[i] != -1) {
+			CALL(lseek(fd,dir_data[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_READ(fd,&pairCounter,0,sizeof(int),sizeof(int));
+			if(content != NULL) {
+				for (int k=0; k < pairCounter; k++) {
+					SAFE_READ(fd,fileName,0,sizeof(char),sB.filenameSize);
+					CALL(lseek(fd,dir_data[i]*sB.blockSize + sizeof(int) + k*(sB.filenameSize+sizeof(int)),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+
+					add_stringNode(content, fileName);
+				}
+			}
+			contentCounter += pairCounter;
+		}
+	}
+
+	return contentCounter;
 }
 
 int getDirEntitiesNum(int fileDesc,char *path)
@@ -592,4 +643,160 @@ int getDirEntitiesNum(int fileDesc,char *path)
 	}
 
 	return counter;
+}
+
+void print_data(int fileDesc,char *path)
+{
+	int		ignore = 0, move;
+
+	// To print the superblock
+	if(!strcmp(path,"superblock"))
+	{
+		printf("nextSuperBlock: %d\n"
+			"root: %d\n"
+			"blockCounter: %d\n"
+			"nodeidCounter: %d \n"
+			"listSize: %d\n"
+			"iTableBlocksNum: %d\n"
+			"iTableCounter: %d\n",sB.nextSuperBlock,sB.root,sB.blockCounter,sB.nodeidCounter,sB.ListSize,sB.iTableBlocksNum,sB.iTableCounter);
+	}
+	// To print the overflow blocks, or the metadata blocks
+	else if(!strcmp(path,"overflow") || !strcmp(path,"metadata"))
+	{
+		// Whether we are reading blocks of the holeList or not
+		bool	inList = false;
+		int	overflow_prev, overflow = sB.nextSuperBlock;
+		// Blocknum in iTable map or holeList, and number of blocknums to be read
+		int	content, nums_to_read;
+		// Number of blocknums that have been read, and the number of blocknums left to read (for the iTable at first)
+		int	readNums, rest = sB.iTableBlocksNum;
+		// Max number of blocknums that can be in an overflow block
+		int	numsPerBlock = (sB.blockSize - sizeof(int)) / sizeof(int);
+		if((sB.blockSize-sizeof(int)) % sizeof(int))
+			numsPerBlock--;
+
+		// As long as there are overflow blocks
+		while(overflow != -1)
+		{	// If user asked to print the overflow blocks, print current overflow blocknum
+			if(!strcmp(path,"overflow"))
+				printf("OverflowBlock: %d\n",overflow);
+			// Keep current overflow blocknum and get the next overflow block
+			overflow_prev = overflow;
+			CALL(lseek(fileDesc,overflow*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_READ(fileDesc,&overflow,0,sizeof(int),sizeof(int));
+			// While th number of blocknums that have been read in current overflow block dont exceed the maximum
+			readNums = 0;
+			while(readNums < numsPerBlock)
+			{	// If there are still blocknums to read for the iTable map, read as many as possible
+				if(rest > 0 && !inList)
+					nums_to_read = (rest > numsPerBlock) ? numsPerBlock : rest;
+				// If there are no more blocknums for the iTable map, will read blocknums for the holeList
+				else if(!inList)
+				{	// Number of blocknums to read for the holeList
+					rest = sB.ListSize;
+					inList = true;
+				}
+				// If we are reading blocknums for the List, read as many as possible
+				if(inList)
+					nums_to_read = ((rest+readNums) > numsPerBlock) ? (numsPerBlock-readNums) : rest;
+				// For each blocknum that is to be read from the overflow block
+				for(int i=readNums; i<(readNums+nums_to_read); i++)
+				{	// Go to current blocknum
+					move = overflow_prev*sB.blockSize + sizeof(int) + i*sizeof(int);
+					CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+					SAFE_READ(fileDesc,&content,0,sizeof(int),sizeof(int));
+					// If user asked to print the overflow block, print current's contents
+					if(!strcmp(path,"overflow"))
+						printf("%d\t",content);
+					// If user asked to print the metadata blocks, print current's contents
+					else
+					{
+						char	content_name[sB.filenameSize];
+						MDS	content_mds;
+						// Print metadata block's blocknum
+						printf("MetadataBlock: %d\n",content);
+						// Go to the metadata block read from the overflow
+						move = content*sB.blockSize;
+						CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+						SAFE_READ(fileDesc,content_name,0,sizeof(char),sB.filenameSize);
+						SAFE_READ(fileDesc,&content_mds,0,sizeof(MDS),sizeof(MDS));
+
+						int	datablocks[content_mds.datablocksCounter];
+						SAFE_READ(fileDesc,datablocks,0,sizeof(int),content_mds.datablocksCounter*sizeof(int));
+						// Print the filename, datablock-counter and the numbers of the datablocks
+						printf("%s\tdatablocksCounter: %d\n",content_name,content_mds.datablocksCounter);
+						printf("Datablocks: ");
+						for(int j=0; j<(content_mds.datablocksCounter); j++)
+							printf("%d\t",datablocks[j]);
+						printf("\n-------------------------------------------------------------------------------\n");
+					}
+				}
+				if(!strcmp(path,"overflow"))
+					printf("\n");
+				// Increase number of blocknums that have been read
+				readNums += nums_to_read;
+				// Decrease number of blocknums left to read
+				rest -= nums_to_read;
+				// If all blocknums are read from the last overflow block
+				if(rest == 0 && overflow == -1)
+					break;
+			}
+		}
+	}
+	// If user asked to print a cfs entity
+	else
+	{
+		int		start, nodeid, dataCounter;
+		int		checked = 0;
+		MDS		*metadata;
+		Datastream	data;
+
+		// Get entity's nodeid
+		start = getPathStartId(path);
+		nodeid = traverse_cfs(fileDesc,path,start);
+		// If path was invalid
+		if(nodeid == -1)
+			printf("Path %s could not be found in cfs.\n",path);
+
+		else
+		{	// Get entity's metadata and data
+			metadata = (MDS*) (inodeTable + nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+			data.datablocks = (int*) (inodeTable + nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
+			// Print entity's name and nodeid
+			printf("%s->%d\n",inodeTable+nodeid*inodeSize+sizeof(bool),nodeid);
+			printf("type: %d\tsize: %d\tparent: %d\tdatablocksCounter: %d\n",metadata->type,metadata->size,metadata->parent_nodeid,metadata->datablocksCounter);
+
+			int	content_nodeid;
+			char	content_name[sB.filenameSize];
+			// For each datablock
+			for(int i=0; i<sB.maxFileDatablockNum; i++)
+			{	// If current datablock is not empty
+				if(data.datablocks[i] != -1)
+				{	// If it is a directory
+					if(metadata->type == Directory)
+					{	// Go to the appropriate datablock and print its contents
+						CALL(lseek(fileDesc,data.datablocks[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+						SAFE_READ(fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
+						printf("Datablock %d: counter = %d\n",data.datablocks[i],dataCounter);
+						// For each entity in the directory, print its name and nodeid
+						for(int j=0; j<dataCounter; j++)
+						{
+							SAFE_READ(fileDesc,content_name,0,sizeof(char),sB.filenameSize);
+							SAFE_READ(fileDesc,&content_nodeid,0,sizeof(int),sizeof(int));
+							printf("%s->%d\t",content_name,content_nodeid);
+						}
+						printf("\n");
+					}
+					// If it is a file, print the number of the datablock
+					else
+						printf("Datablock %d\n",data.datablocks[i]);
+
+					checked++;
+				}
+				// If all datablocks are printed
+				if(checked == metadata->datablocksCounter)
+					break;
+			}
+		}
+	}
 }

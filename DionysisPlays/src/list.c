@@ -47,6 +47,62 @@ void printList(List *list)
     printf("\n");
 }
 
+int pop_minimum_Node(List** list)
+{
+    if (list == NULL || *list == NULL)
+        return -1;
+    int minItem = (*list)->item;
+    List *minNode = *list;
+    List *temp = *list;
+    while (temp != NULL)
+    {
+        if (temp->item < minItem) {
+            minItem = temp->item;
+            minNode = temp;
+        }
+        temp = temp->next;
+    }
+    if ((*list)->item == minItem) {
+        *list = (*list)->next;
+        free(minNode);
+        return minItem;
+    } else {
+        temp = *list;
+        while (temp->next != NULL)
+        {
+            if (temp->next == minNode) {
+                temp->next = minNode->next;
+                free(minNode);
+                return minItem;
+            }
+            temp = temp->next;
+        }
+    }
+    return -1;
+}
+
+int pop_last_Node(List** list)
+{
+    if (list == NULL || *list == NULL)
+        return -1;
+    int result;
+    if ((*list)->next == NULL) {
+        result = (*list)->item;
+        free(*list);
+        *list = NULL;
+        return result;
+    }
+    List *temp = *list;
+    while (temp->next->next != NULL)
+    {
+        temp = temp->next;
+    }
+    result = temp->next->item;
+    free(temp->next);
+    temp->next = NULL;
+    return result;
+}
+
 void add_stringNode(string_List **list, char *item)
 {
     if (list == NULL || *list == NULL) {
