@@ -242,7 +242,7 @@ int main(void) {
 
 				option_prev = strtok_r(NULL," \t",&rest);
 				option = strtok_r(NULL," \t",&rest);
-				// At least to files required
+				// At least two files required
 				if(option_prev == NULL || option == NULL)
 					printf("Input error, too few arguments.\n");
 
@@ -368,7 +368,7 @@ int main(void) {
 
 				option_prev = strtok_r(NULL," \t",&rest);
 				option = strtok_r(NULL," \t",&rest);
-				// At least to files required
+				// At least two files required
 				if(option_prev == NULL || option == NULL)
 					printf("Input error, too few arguments.\n");
 

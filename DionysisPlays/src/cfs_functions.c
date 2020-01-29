@@ -89,7 +89,7 @@ void update_superBlock(int fileDesc)
 			// size_to_write must be a multiple of sizeof(int)
 			if(size_to_write % sizeof(int))
 				size_to_write -= size_to_write % sizeof(int);
-	//			while(dataSize > 0)
+//			while(dataSize > 0)
 			do {
 				// Write as many (non-empty) datablocks as possible in current block
 				while(writtenData*sizeof(int) < size_to_write)
@@ -177,21 +177,59 @@ void update_superBlock(int fileDesc)
 			addNode(&holes,iblock[usedBlocks+i]);
 			// Increase list's size
 			sB.ListSize++;
-			// Decrease number of blocks needed for the iTable
-			sB.iTableBlocksNum--;
 			// Increase free space in overflow block by an int
 			freeSpaces += sizeof(int);
 		}
+		// Decrease number of blocks needed for the iTable
+		sB.iTableBlocksNum = usedBlocks;
 	}
 
-	//	// If current overflow block has its own overflow but it will not be needed anymore (iTable and List require less blocks than before)
-	//	if(overflow_next != -1)
+	// If current overflow block has its own overflow, check if it is needed to store the holeList
+	if(overflow_next != -1)
+	{
+		int	empty_overflow = overflow_next;
+		// Space left for the List in current overflow block
+		int	currentSpace = freeSpaces;
+		// List's size in bytes
+		int	listNodes = sB.ListSize*sizeof(int);
+		int	next;
+
+		// While there is another overflow block
+		while(empty_overflow != -1)
+		{
+			// If there's enough space in current overflow block for the List (+next overflow block that will be added in List)
+			if((listNodes + sizeof(int)) <= currentSpace)
+			{	// Next overflow block is not needed after all (iTable + List require less overflow blocks than last time)
+				// Add it to holeList
+				addNode(&holes,empty_overflow);
+				sB.ListSize++;
+				// Increase number of bytes required to store the List
+				listNodes += sizeof(int);
+				// Get next overflow block's number
+			    	CALL(lseek(fileDesc,empty_overflow*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				SAFE_READ(fileDesc,&next,0,sizeof(int),sizeof(int));
+				// If current overflow block is full or there is no other overflow block after it
+				if(currentSpace <= 0 || next == -1)
+					empty_overflow = next;
+			}
+			// Next overflow block is needed
+			else
+			{	// Assume as many listNodes as possible will be stored in current overflow block
+				listNodes -= currentSpace;
+				// New currentSpace is free space in the next overflow block (which will be used)
+				currentSpace = sB.blockSize - sizeof(int);
+				// Check for another (possibly useless) overflow block
+				CALL(lseek(fileDesc,empty_overflow*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				SAFE_READ(fileDesc,&empty_overflow,0,sizeof(int),sizeof(int));
+			}
+		}
+	}
 
 	// Write the holeList on the file
     	int	hole;
 	// As long as List is not empty, find and go to the right block to write the list
     	for (int i=0; i<sB.ListSize;i++) {
-        	hole = pop_last_Node(&holes);
+        	hole = pop_minimum_Node(&holes);
 		// If there is space in current block
         	if (freeSpaces > 0) {
 				move = overflow_block*sB.blockSize + (sB.blockSize - freeSpaces);
@@ -235,7 +273,7 @@ int getTableSpace()
 
 	for(i=0; i<sB.iTableCounter; i++)
 	{
-		busy = (bool) (inodeTable + i*inodeSize);
+		busy = *(bool*) (inodeTable + i*inodeSize);
 		if(busy == false)
 			break;
 	}
@@ -365,7 +403,7 @@ int traverse_cfs(int fd,char *filename,int start)
 int getEmptyBlock()
 {
     int new_blockNum = pop_minimum_Node(&holes);
-    if(new_blockNum > 0) {
+    if(new_blockNum != -1) {
         sB.ListSize--;
         return new_blockNum;
     } else {
@@ -587,79 +625,34 @@ void append_file(int fd,int source_nodeid,int output_nodeid)
 	output_mds->size += source_mds->size;
 }
 
-int getDir_inodes(int fd, char *directory_path, string_List **content)
+int getDirEntities(int fd, int dir_nodeid, string_List **content)
 {
-	if (directory_path == NULL)
-		return -1;
-	int 	 ignore;
-	int 	 directory_nodeid = traverse_cfs(fd, directory_path, getPathStartId(directory_path));
-	int 	*dir_data = (int*) (inodeTable + directory_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
+	int 	ignore;
+	MDS 	*dir_mds = (MDS*) (inodeTable + dir_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	int 	*dir_data = (int*) inodeTable + dir_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS);
+	int 	 dir_dataBlocksNum = dir_mds->datablocksCounter;
 
 	char 	 fileName[sB.filenameSize];
-	char	 path[strlen(directory_path) + sB.filenameSize + 2];
 	int 	 contentCounter = 0;
 	int 	 pairCounter;
-	for (int i=0; i < sB.maxFileDatablockNum; i++) {
-		if (dir_data[i] != -1) {
+
+	for (int i=0; i < dir_dataBlocksNum; i++) {
+		if(dir_data[i] != -1) {
 			CALL(lseek(fd,dir_data[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 			SAFE_READ(fd,&pairCounter,0,sizeof(int),sizeof(int));
 			if(content != NULL) {
 				for (int k=0; k < pairCounter; k++) {
-					CALL(lseek(fd,dir_data[i]*sB.blockSize + sizeof(int) + k*(sB.filenameSize+sizeof(int)),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 					SAFE_READ(fd,fileName,0,sizeof(char),sB.filenameSize);
-					if(strcmp(fileName, ".") != 0 && strcmp(fileName, "..") != 0) {
-						strcpy(path, directory_path);
-						strcat(path, "/");
-						strcat(path, fileName);
-						add_stringNode(content, path);
-					}
+					CALL(lseek(fd,dir_data[i]*sB.blockSize + sizeof(int) + k*(sB.filenameSize+sizeof(int)),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+
+					add_stringNode(content, fileName);
 				}
 			}
 			contentCounter += pairCounter;
 		}
 	}
+
 	return contentCounter;
-}
-
-int getDirEntitiesNum(int fileDesc,char *path)
-{
-	int		ignore = 0;
-	int		start, nodeid;
-	int		counter, dataCounter;
-	MDS		*dir_mds;
-	Datastream	data;
-
-	// Find the nodeid of the first entity in path
-	start = getPathStartId(path);
-	// Get the nodeid of the entity the path leads to
-	nodeid = traverse_cfs(fileDesc,path,start);
-	// If path was invalid
-	if(nodeid == -1)
-	{
-		printf("Path %s could not be found in cfs.\n",path);
-		return false;
-	}
-	// Get directory's metadata
-	dir_mds = (MDS*) (inodeTable + nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-	if(dir_mds->type != Directory)
-	{
-		printf("Input error, path %s is not a directory.\n",inodeTable+nodeid*inodeSize+sizeof(bool));
-		return false;
-	}
-	data.datablocks = (int*) (inodeTable + nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
-
-	counter = 0;
-	for(int i=0; i<(sB.maxFileDatablockNum); i++)
-	{
-		if(data.datablocks[i] != -1)
-		{
-			CALL(lseek(fileDesc,data.datablocks[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-			SAFE_READ(fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
-			counter += dataCounter;
-		}
-	}
-
-	return counter;
 }
 
 void print_data(int fileDesc,char *path)
@@ -742,7 +735,8 @@ void print_data(int fileDesc,char *path)
 						SAFE_READ(fileDesc,datablocks,0,sizeof(int),content_mds.datablocksCounter*sizeof(int));
 						// Print the filename, datablock-counter and the numbers of the datablocks
 						printf("%s\tdatablocksCounter: %d\n",content_name,content_mds.datablocksCounter);
-						printf("Datablocks: ");
+						if(content_mds.datablocksCounter > 0)
+							printf("Datablocks: ");
 						for(int j=0; j<(content_mds.datablocksCounter); j++)
 							printf("%d\t",datablocks[j]);
 						printf("\n-------------------------------------------------------------------------------\n");
