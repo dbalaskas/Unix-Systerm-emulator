@@ -461,6 +461,7 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 		metadata->access_time = curr_time;
 		metadata->modification_time = curr_time;
 		metadata->datablocksCounter = 0;
+		metadata->linkCounter = 1;
 
 		offset += sizeof(MDS);
 		data.datablocks = (int*) (inodeTable + offset);
@@ -529,7 +530,46 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 	}
 }
 
-bool cfs_pwd() {
+int cfs_ln(int fileDesc,char* source_path,char* destination)
+{
+	int 	 source_nodeid;
+	char 	*source_name;
+	MDS		*source_mds;
+
+	int 	 directory_nodeid;
+
+	char	 destination_path[strlen(destination) + sB.filenameSize + 2];
+	char	 destination_name[sB.filenameSize];
+	int		 destination_nodeid;
+
+	// Check if source exists.
+	source_nodeid = traverse_cfs(fileDesc, source_path, getPathStartId(source_path));
+	if (source_nodeid == -1) {
+		printf("ln: cannot stat '%s': No such file or directory\n",source_path);
+		return -1;
+	}
+	// Check if source is file.
+	source_name = inodeTable + source_nodeid*inodeSize + sizeof(bool);
+	source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	if (source_mds->type) {
+		printf("ln: cannot create link to directory\n");
+		return -1;
+	}
+	// Check if destination exists.
+	directory_nodeid = get_parent(fileDesc, destination, destination_name);
+	if (directory_nodeid == -1) {
+		printf("cp: cannot create directory '%s': No such file or directory\n", destination);
+		return -1;
+	}
+	destination_nodeid = traverse_cfs(fileDesc,destination_name,directory_nodeid);
+	strcpy(destination_path, destination);
+	// Create
+
+	// return destination_nodeid;
+}
+
+bool cfs_pwd() 
+{
 	// Takes the current nodeid from global variable cfs_current_nodeid,
 	MDS 			*curr_dir_MDS = (MDS *) (inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
 	int 	 		 curr_dir_id = cfs_current_nodeid;
@@ -566,7 +606,8 @@ bool cfs_pwd() {
 	return true;
 }
 
-bool cfs_cd(int fileDesc, char *path) {
+bool cfs_cd(int fileDesc, char *path) 
+{
 	int 	 path_nodeId = -1;
 	MDS 	*path_MDS = NULL;
 	int		 start;
@@ -627,7 +668,8 @@ bool cfs_cd(int fileDesc, char *path) {
 	return true;
 }
 
-bool cfs_ls(int fileDesc, bool *ls_modes, char *path) {
+bool cfs_ls(int fileDesc, bool *ls_modes, char *path) 
+{
 	int 	 		 ignore;
 	int 	 		 path_nodeId = -1;
 	List 			*path_content = NULL;
@@ -780,10 +822,12 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path) {
 	return true;
 }
 
-bool cfs_cp(int fileDesc, cp_mode *cp_modes, string_List *sourceList, char *destination)
+bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destination)
 {
 	int 		 sourcesCount = getLength(sourceList);
-	char		 answer;
+	char		 line[100];
+	char		*answer;
+	string_List *directory_inodeList;
 
 	char 		*source_path;
 	char 		*source_name;
@@ -791,9 +835,8 @@ bool cfs_cp(int fileDesc, cp_mode *cp_modes, string_List *sourceList, char *dest
 	MDS 		*source_mds;
 
 	int 		 directory_nodeid;
-	// MDS 		*directory_mds;
 
-	char		*destination_path;
+	char		 destination_path[strlen(destination) + sB.filenameSize + 2];
 	char 		 destination_name[sB.filenameSize];
 	int			 destination_nodeid;
 	MDS 		*destination_mds;
@@ -805,7 +848,6 @@ bool cfs_cp(int fileDesc, cp_mode *cp_modes, string_List *sourceList, char *dest
 		printf("cp: cannot create directory '%s': No such file or directory\n", destination);
 		return false;
 	}
-	// directory_mds 	 = (MDS*) (inodeTable + directory_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
 	//------------------------------------------------------------------------------------
 	// Copy each source to destination.
 	while (sourceList != NULL) {
@@ -815,98 +857,285 @@ bool cfs_cp(int fileDesc, cp_mode *cp_modes, string_List *sourceList, char *dest
 		// Check if source_path has valid value.
 		if(source_nodeid == -1) {
 			printf("cp: cannot stat '%s': No such file or directory\n",source_path);
+			free(source_path);
+			continue;
+		}
+		source_name = inodeTable + source_nodeid*inodeSize + sizeof(bool);
+		source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+		if (source_mds->type == Directory && cp_modes[CP_R] == false && cp_modes[CP_RR] == false) {
+			printf("cp: -r not specified; omitting directory '%s'\n", source_path);
+			free(source_path);
+			continue;
+		}
+		//--------------------------------------------------------------------------------
+		// Get destination inode.
+		destination_nodeid = traverse_cfs(fileDesc,destination_name,directory_nodeid);
+		strcpy(destination_path, destination);
+		if (destination_nodeid == -1) {
+			if (sourcesCount != 1) {
+				printf("cp: target '%s' is not a directory\n", destination);
+				free(source_path);
+			} else if (source_mds->type == Directory) {
+				if (cp_modes[CP_RR] == true) {
+					cfs_mkdir(fileDesc, destination_path);
+				} else {	// (cp_modes[CP_R] == true)
+					directory_inodeList = NULL;
+					getDir_inodes(fileDesc, source_path, &directory_inodeList);
+					cfs_mkdir(fileDesc, destination_path);
+					cfs_cp(fileDesc, cp_modes, directory_inodeList, destination_path);
+				}
+			} else {
+				cfs_touch(fileDesc, destination_path, CRE);
+				destination_nodeid = traverse_cfs(fileDesc, destination_path, getPathStartId(destination_path));
+				replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+			}
+		} else {	// destination_nodeid != -1
+			// If the file exists check the its type.
+			destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+			if (destination_mds->type == Directory) {
+				strcat(destination_path, "/");
+				strcat(destination_path, source_name);
+				destination_nodeid = traverse_cfs(fileDesc,source_name,destination_nodeid);
+				if (destination_nodeid == -1) {
+					if (source_mds->type == Directory) {
+						if (cp_modes[CP_RR] == true) {
+							cfs_mkdir(fileDesc, destination_path);
+						} else {	// (cp_modes[CP_R] == true)
+							directory_inodeList = NULL;
+							getDir_inodes(fileDesc, source_path, &directory_inodeList);
+							cfs_mkdir(fileDesc, destination_path);
+							cfs_cp(fileDesc, cp_modes, directory_inodeList, destination_path);
+						}
+					} else {
+						cfs_touch(fileDesc, destination_path, CRE);
+						destination_nodeid = traverse_cfs(fileDesc, destination_path, getPathStartId(destination_path));
+						replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+					}
+				} else {	// destination_nodeid != -1.
+					// If destination/source_name exists check if the type of source and destination are matching.
+					destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+					if (source_mds->type == Directory && destination_mds->type == Directory) {
+						if (cp_modes[CP_I] == true) {
+							printf("cp: You want to overwrite '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
+							fgets(line, 100, stdin);
+							printf("strlen of line = %d.\n", strlen(line));
+							if (line != NULL){
+								answer = strtok(line, " \n\t");
+							}
+							if (answer == NULL || (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0)) {
+								printf("Copy denied.\n");
+								free(source_path);
+								continue;
+							}
+						}
+						directory_inodeList = NULL;
+						getDir_inodes(fileDesc, source_path, &directory_inodeList);
+						cfs_cp(fileDesc, cp_modes, directory_inodeList, destination_path);
+					} else if (source_mds->type == File && destination_mds->type == File) {
+						if (cp_modes[CP_I] == true) {
+							printf("cp: You want to overwrite '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
+							fgets(line, 100, stdin);
+							printf("strlen of line = %d.\n", strlen(line));
+							if (line != NULL){
+								answer = strtok(line, " \n\t");
+							}
+							if (answer == NULL || (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0)) {
+								printf("Copy denied.\n");
+								free(source_path);
+								continue;
+							}
+						}
+						replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+					} else if (source_mds->type != Directory && destination_mds->type == Directory) {
+						printf("cp: cannot overwrite directory '%s' with non-directory '%s'\n", destination_path, source_path);
+					} else if (source_mds->type == Directory && destination_mds->type != Directory) {
+						printf("cp: cannot overwrite non-directory '%s' with directory '%s'\n", destination_path, source_path);
+					}
+				}
+			} else {	// destination_mds->type == File
+				// If destination is not a directory, first check the sourcesCount and after the source type.
+				if (sourcesCount != 1) {
+					printf("cp: target '%s' is not a directory\n", destination);
+				} else if (source_mds->type == Directory) {
+					printf("cp: cannot overwrite non-directory '%s' with directory '%s'\n", destination, source_path);
+				} else if (source_mds->type == File) {
+					if (cp_modes[CP_I] == true) {
+						printf("cp: You want to overwrite '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
+						fgets(line, 100, stdin);
+						printf("strlen of line = %d.\n", strlen(line));
+						if (line != NULL){
+							answer = strtok(line, " \n\t");
+						}
+						if (answer == NULL || (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0)) {
+							printf("Copy denied.\n");
+							free(source_path);
+							continue;
+						}
+					}
+					replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+				}
+			}
+		}
+		free(source_path);
+	}
+	return true;
+}
+
+bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destination)
+{
+	int 		 sourcesCount = getLength(sourceList);
+	char		 line[100];
+	char		*answer;
+	string_List *directory_inodeList;
+	bool		rm_modes[rm_mode_Num];
+
+	char 		*source_path;
+	char 		*source_name;
+	int 		 source_nodeid;
+	MDS 		*source_mds;
+
+	int 		 directory_nodeid;
+
+	char		 destination_path[strlen(destination) + sB.filenameSize + 2];
+	char 		 destination_name[sB.filenameSize];
+	int			 destination_nodeid;
+	MDS 		*destination_mds;
+
+	for (int i=0; i<rm_mode_Num; i++)
+		rm_modes[i] = false;
+	//------------------------------------------------------------------------------------
+	// Get destination's directory inode
+	directory_nodeid = get_parent(fileDesc, destination, destination_name);
+	if (directory_nodeid == -1) {
+		printf("mv: cannot create directory '%s': No such file or directory\n", destination);
+		return false;
+	}
+	//------------------------------------------------------------------------------------
+	// Copy each source to destination.
+	while (sourceList != NULL) {
+		source_path = pop_last_string(&sourceList);
+		// Get source inode.
+		source_nodeid = traverse_cfs(fileDesc, source_path, getPathStartId(source_path));
+		// Check if source_path has valid value.
+		if(source_nodeid == -1) {
+			printf("mv: cannot stat '%s': No such file or directory\n",source_path);
+			free(source_path);
 			continue;
 		}
 		source_name = inodeTable + source_nodeid*inodeSize + sizeof(bool);
 		source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
 		//--------------------------------------------------------------------------------
 		// Get destination inode.
-		// Get id of the destination.
 		destination_nodeid = traverse_cfs(fileDesc,destination_name,directory_nodeid);
+		strcpy(destination_path, destination);
 		if (destination_nodeid == -1) {
 			// If the destination does not exists, it has to be imported only one source.
 			// Create a new inode at the destination and copy the source in it.
-			if (sourcesCount == 1) {
-				destination_path = destination;
-			} else {
-				printf("cp: target '%s' is not a directory\n", destination);
-				continue;
-			} 
-		} else {	// destination_id != -1
-			// If the file exists check the its type.
+			if (sourcesCount != 1) {
+				printf("mv: target '%s' is not a directory\n", destination);
+			} else if (source_mds->type == Directory){
+				directory_inodeList = NULL;
+				getDir_inodes(fileDesc, source_path, &directory_inodeList);
+				cfs_mkdir(fileDesc, destination_path);
+				cfs_mv(fileDesc, mv_modes, directory_inodeList, destination_path);
+			} else {	// source_mds->type == File.
+				cfs_touch(fileDesc, destination_path, CRE);
+				destination_nodeid = traverse_cfs(fileDesc, destination_path, getPathStartId(destination_path));
+				replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+			}
+		} else {	// destination_nodeid != -1.
+			// If the destination exists check its type.
 			destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
 			if (destination_mds->type == Directory) {
-				// If destination is directory, check if exists an inode in it with the name of the source.
-				// If it does, Copy the source to the inode of the destination, Overide it and change it's metadata.
-				// Else, Create a new inode at the destination and copy source in it.
-				destination_path = (char*) malloc(strlen(destination)+strlen(source_name)+2);
-				strcpy(destination_path, destination);
+				// If destination is a directory check if exists the destination/source_name.
 				strcat(destination_path, "/");
 				strcat(destination_path, source_name);
-
-
-				// replace_nodeid = traverse_cfs(fileDesc,source_name,destination_nodeid);
-				// if (replace_nodeid == -1) {
-				// } else {
-				// 	destination_mds = (MDS*) (inodeTable + replace_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-				// 	if (source_mds->type != Directory) {
-
-				// 	} else {
-
-				// 	}
-				// 	if (source_mds->type == Directory && destination_mds->type == Directory) {
-				// 		destination_path = (char*) malloc(strlen(destination)+strlen(source_name)+2);
-				// 		string_List *directory_inodeList;
-				// 		//directory_inodeList = ;
-				//		cfs_cp(fileDesc, cp_modes, directory_inodeList, destination_path);
-				// 		continue;
-				// 																		// For same names and different types!!!
-				// 																		// } else if (source_mds->type != Directory && destination_mds->type == Directory) {
-				// 																		// 	printf("cp: cannot overwrite directory '%s/%s' with non-directory\n", destination, source_name);
-				// 																		// 	continue;
-				// 																		// } else {
-				// 																		// 	printf("cp: cannot overwrite non-directory '%s/%s' with directory '%s'\n", destination, source_name, source_name);
-				// 																		// 	continue;
-				// 																		// }
-				// }
-			} else {	// destination_mds->type != Directory
-				// If destination is not directory, it has to be imported only one source.
-				// Copy the source to the inode of the destination.
-				// Overides it and change it's metadata.
-				if (source_mds->type != Directory && sourcesCount == 1) {
-					destination_path = destination;
-				} else {
-					printf("cp: target '%s' is not a directory\n", destination);
-					continue;
+				destination_nodeid = traverse_cfs(fileDesc,source_name,destination_nodeid);
+				if (destination_nodeid == -1) {
+					// If destination/source_name does not exists create a new directory or file with name <source_name>.
+					if(source_mds->type == Directory) {
+						directory_inodeList = NULL;
+						getDir_inodes(fileDesc, source_path, &directory_inodeList);
+						cfs_mkdir(fileDesc, destination_path);
+						cfs_mv(fileDesc, mv_modes, directory_inodeList, destination_path);
+					} else {
+						cfs_touch(fileDesc, destination_path, CRE);
+						destination_nodeid = traverse_cfs(fileDesc, destination_path, getPathStartId(destination_path));
+						replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+					}
+				} else {	// destination_nodeid != -1.
+					// If destination/source_name exists check if the type of source and destination are matching.
+					destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+					if (source_mds->type == Directory && destination_mds->type == Directory) {
+						if (mv_modes[MV_I] == true) {
+							printf("mv: You want to overide '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
+							fgets(line, 100, stdin);
+							printf("strlen of line = %d.\n", strlen(line));
+							if (line != NULL){
+								answer = strtok(line, " \n\t");
+							}
+							if (answer == NULL || (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0)) {
+								printf("Copy denied.\n");
+								free(source_path);
+								cfs_rm(fileDesc, rm_modes, source_path);
+								continue;
+							}
+						}
+						directory_inodeList = NULL;
+						getDir_inodes(fileDesc, source_path, &directory_inodeList);
+						cfs_mv(fileDesc, mv_modes, directory_inodeList, destination_path);
+					} else if (source_mds->type == File && destination_mds->type == File) {
+						if (mv_modes[MV_I] == true) {
+							printf("mv: You want to overwrite '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
+							fgets(line, 100, stdin);
+							printf("strlen of line = %d.\n", strlen(line));
+							if (line != NULL){
+								answer = strtok(line, " \n\t");
+							}
+							if (answer == NULL || (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0)) {
+								printf("Copy denied.\n");
+								cfs_rm(fileDesc, rm_modes, source_path);
+								free(source_path);
+								continue;
+							}
+						}
+						replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+					} else if (source_mds->type != Directory && destination_mds->type == Directory) {
+						printf("mv: cannot overwrite directory '%s' with non-directory '%s'\n", destination_path, source_path);
+					} else if (source_mds->type == Directory && destination_mds->type != Directory) {
+						printf("mv: cannot overwrite non-directory '%s' with directory '%s'\n", destination_path, source_path);
+					}
+				}
+			} else {	// destination_mds->type == File.
+				// If destination is not a directory, first check the sourcesCount and after the source type.
+				if (sourcesCount != 1) {
+					printf("mv: target '%s' is not a directory\n", destination);
+				} else if (source_mds->type == Directory) {
+					printf("mv: cannot overwrite non-directory '%s' with directory '%s'\n", destination, source_path);
+				} else if (source_mds->type == File) {
+					if (mv_modes[MV_I] == true) {
+						printf("mv: You want to overwrite '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
+						fgets(line, 100, stdin);
+						printf("strlen of line = %d.\n", strlen(line));
+						if (line != NULL){
+							answer = strtok(line, " \n\t");
+						}
+						if (answer == NULL || (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0)) {
+							printf("Copy denied.\n");
+							cfs_rm(fileDesc, rm_modes, source_path);
+							free(source_path);
+							continue;
+						}
+					}
+					replaceEntity(fileDesc, source_nodeid, destination_nodeid);
 				}
 			}
 		}
-		//--------------------------------------------------------------------------------
-		// If mode -i is enabled ask if users want to overwrite th destination.
-		if (cp_modes[CP_I]) {
-			printf("cp: overwrite '%s/%s'? (y|n)", destination, source_name);
-			//...
-			// If he doesn't accept, do not copy.
-			if (answer == 'n' || answer == 'N')
-				continue;
-		}
-		//--------------------------------------------------------------------------------
-		// replace source (source_nodeid) to destination (destination_nodeid).
-					destination_mds->type = source_mds->type;
-		// Updadte (or create) metadata.
-		if (source_mds->type == File) {
-			destination_nodeid = cfs_touch(fileDesc, destination_path, CRE);
-		} else if (source_mds->type == Link) {
-			//destination_nodeid = ln(fileDesc, destination_path);
-		} else if (source_mds->type == Directory && cp_modes[CP_R]) {
-			destination_nodeid = cfs_mkdir(fileDesc, destination_path);
-		} else {
-			printf("cp: -r not specified; omitting directory '%s'\n", source_path);
-			continue;
-		}
-		// Write data.
-		replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+
+		cfs_rm(fileDesc, rm_modes, source_path);
+		free(source_path);
 	}
+
 	return true;
 }
 
@@ -1359,13 +1588,13 @@ int cfs_create(char *filename,int bSize,int nameSize,unsigned int maxFSize,int m
 	sB.filenameSize = (nameSize != -1) ? nameSize : FILENAME_SIZE;
 	sB.maxFileSize = (maxFSize != -1) ? maxFSize : MAX_FILE_SIZE;
 	sB.maxFilesPerDir = (maxDirFileNum != -1) ? maxDirFileNum : MAX_DIRECTORY_FILE_NUMBER;
-///	sB.metadataBlocksNum = (sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int)) / sB.blockSize;
-///	if(((sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int)) % sB.blockSize) > 0)
-///        	sB.metadataBlocksNum++;
+	///	sB.metadataBlocksNum = (sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int)) / sB.blockSize;
+	///	if(((sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int)) % sB.blockSize) > 0)
+	///        	sB.metadataBlocksNum++;
 	// Every datablock of a directory contains some pairs of (filename+nodeid) for the directory's contents and a counter of those pairs
 	sB.maxEntitiesPerBlock = (sB.blockSize - sizeof(int)) / (sB.filenameSize + sizeof(int));
 	sB.maxFileDatablockNum = (sB.maxFileSize) / (sB.blockSize);
-//	if((sB.blockSize - sizeof(int)) % (sB.filenameSize + sizeof(int)))
+	//	if((sB.blockSize - sizeof(int)) % (sB.filenameSize + sizeof(int)))
 	if(sB.maxFileSize % sB.blockSize)
 		sB.maxFileDatablockNum++;
 	sB.maxDirDatablockNum = (sB.maxFilesPerDir + 2) / sB.maxEntitiesPerBlock;

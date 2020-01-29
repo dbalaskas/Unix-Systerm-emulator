@@ -9,10 +9,17 @@
 // #include "cfs_file.h"
 
 typedef enum {false, true} 							bool;
+
 typedef enum {CRE, ACC, MOD} 						touch_mode;
+#define touch_mode_Num 3
 typedef enum {LS_A, LS_R, LS_L, LS_U, LS_D, LS_H} 	ls_mode;
-typedef enum {CP_I, CP_R, CP_L}			 			cp_mode;
-typedef enum {RM_I, RM_R}		 					rm_mode;	
+#define ls_mode_Num 6
+typedef enum {CP_I, CP_R, CP_RR}			 		cp_mode;
+#define cp_mode_Num 3
+typedef enum {MV_I}			 						mv_mode;
+#define mv_mode_Num 1
+typedef enum {RM_I, RM_R}		 					rm_mode;
+#define rm_mode_Num 2	
 
 #define CALL(call,error,errString,errNum,returnVal)								\
 returnVal = call;																\
@@ -55,6 +62,6 @@ int get_parent(int,char*,char*);
 int getPathStartId(char*);
 void replaceEntity(int,int,int);
 void append_file(int,int,int);
-int getDir_inodes(int,int,string_List**);
+int getDir_inodes(int,char*,string_List**);
 int getDirEntitiesNum(int,char*);
 void print_data(int,char*);

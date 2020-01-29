@@ -11,15 +11,18 @@ int main(void) {
 	int	 fileDesc = -1;						//updated by cfs_create or cfs_workwith
 	bool	 open_cfs = false;
 
+	printf("\n");
 	printCommands();
 	do{
-		printf("CFS:");
+		printf("\033[3;32mCFS:");
 		fflush( stdout );
 		if (open_cfs == true) {
+			printf("\033[6;31m");
 			cfs_pwd();
 			fflush( stdout );
 		}
-		printf("$ ");
+		printf("\033[6;31m$ ");
+		printf("\033[0m");
 
 		CALL(fgets(line,sizeof(line),stdin),NULL,NULL,6,ignore);
 		temp = strtok(line,"\n");
@@ -147,10 +150,10 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
-				bool ls_modes[6];
+				bool ls_modes[ls_mode_Num];
 				char *dirname;
 				string_List *directories = NULL;
-				for (int i=0; i<6;i++)
+				for (int i=0; i<ls_mode_Num;i++)
 					ls_modes[i]=false;
 					
 				option = strtok_r(NULL," \t",&rest);
@@ -194,6 +197,37 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
+				bool cp_modes[6];
+				string_List *sources = NULL;
+				char * destination;
+				for (int i=0; i<cp_mode_Num;i++)
+					cp_modes[i]=false;
+					
+				option = strtok_r(NULL," \t",&rest);
+
+				while(option != NULL)
+				{
+					if (strcmp(option, "-r") == 0) {
+						cp_modes[CP_R] = true;
+					} else if (strcmp(option, "-i") == 0) {
+						cp_modes[CP_I] = true;
+					} else if (strcmp(option, "-R") == 0) {
+						cp_modes[CP_RR] = true;
+					} else {
+						add_stringNode(&sources, option);
+					}
+
+					option = strtok_r(NULL," \t",&rest);
+				}
+				if (sources == NULL) {
+					printf("cp: missing file operand\n");
+				} else {
+					destination = pop_string(&sources);
+					if (sources == NULL) 
+						printf("cp: missing destination file operand after '%s'\n", destination);
+					else
+						cfs_cp(fileDesc, cp_modes, sources, destination);
+				}
 			}
 		}
 		else if(!strcmp(command,"cfs_cat"))
@@ -241,10 +275,33 @@ int main(void) {
 		}
 		else if(!strcmp(command,"cfs_mv"))
 		{
-			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
-			else
-			{
+				bool mv_modes[mv_mode_Num];
+				string_List *sources = NULL;
+				char * destination;
+				for (int i=0; i<mv_mode_Num;i++)
+					mv_modes[i]=false;
+					
+				option = strtok_r(NULL," \t",&rest);
+
+				while(option != NULL)
+				{
+					if (strcmp(option, "-i") == 0) {
+						mv_modes[CP_I] = true;
+					} else {
+						add_stringNode(&sources, option);
+					}
+
+					option = strtok_r(NULL," \t",&rest);
+				}
+				if (sources == NULL) {
+					printf("mv: missing file operand\n");
+				} else {
+					destination = pop_string(&sources);
+					if (sources == NULL) 
+						printf("mv: missing destination file operand after '%s'\n", destination);
+					else
+						cfs_mv(fileDesc, mv_modes, sources, destination);
+				}
 			}
 		}
 		else if(!strcmp(command,"cfs_rm"))

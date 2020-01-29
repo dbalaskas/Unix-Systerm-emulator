@@ -4,14 +4,15 @@
 typedef enum {File, Directory, Link} cfs_type;
 
 typedef struct {
-	int		nodeid;
+	int				nodeid;
 	unsigned int	size;
-	cfs_type	type;
-	int		parent_nodeid;
-	time_t		creation_time;
-	time_t		access_time;
-	time_t		modification_time;
-	int		datablocksCounter;			// Number of elements in table datablocks (at any time)
+	cfs_type		type;
+	int				parent_nodeid;
+	time_t			creation_time;
+	time_t			access_time;
+	time_t			modification_time;
+	int				datablocksCounter;			// Number of elements in table datablocks (at any time)
+	int 			linkCounter;
 } MDS;
 
 typedef struct {
