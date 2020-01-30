@@ -665,7 +665,7 @@ bool cfs_pwd(cfs_info *info)
 	while (curr_dir_id != 0) {
 		addNode(&path_nodeIds, curr_dir_id);
 		curr_dir_id = curr_dir_MDS->parent_nodeid;
-		curr_dir_MDS = (MDS *) (info->inodeTable + curr_dir_id*(info->inodeSize) + sizeof(bool));
+		curr_dir_MDS = (MDS *) (info->inodeTable + curr_dir_id*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
 	}
 	// Now the list path_nodeIds has the nodeids of each dir on the path to current dir, from start to end.
 	// So we pop each one and print its name,
