@@ -1479,7 +1479,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 	int		ignore = 0;
 	int		source_nodeid, dest_nodeid, dest_entities;
 	char		*initial;
-	char		new_path[strlen(destPath)+(info->(sB.filenameSize+2))];
+	char		new_path[strlen(destPath)+((info->sB).filenameSize+2)];
 	MDS		*source_mds, *dest_mds;
 	Datastream	data;
 
@@ -1492,7 +1492,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 		return false;
 	}
 	// Get destination directory's metadata
-	dest_mds = (MDS*) ((info->inodeTable) + dest_nodeid*(info->inodeSize) + sizeof(bool) + (info->(sB.filenameSize)));
+	dest_mds = (MDS*) ((info->inodeTable) + dest_nodeid*(info->inodeSize) + sizeof(bool) + ((info->sB).filenameSize));
 	if(dest_mds->type != Directory)
 	{
 		printf("Input error, destination path %s is not a directory.\n",(info->inodeTable)+dest_nodeid*(info->inodeSize)+sizeof(bool));
@@ -1505,7 +1505,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 	// Get number of entities in sourceList
 	listSize = getLength(sourceList);
 	// If source entities require too much space
-	if(listSize > ((info->(sB.maxFilesPerDir)) - dest_entities))
+	if(listSize > (((info->sB).maxFilesPerDir) - dest_entities))
 	{
 		printf("Error, not enough space in destination directory.\n");
 		return false;
@@ -1524,7 +1524,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 	}
 
 	int		move;
-	char		fileBuffer[(info->(sB.blockSize))];
+	char		fileBuffer[((info->sB).blockSize)];
 	char		*split, *temp;
 	struct stat	entity;
 	// For every source file
@@ -1567,7 +1567,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 			{
 				DIR		*dir;
 				struct dirent	*content;
-				char		content_path[strlen(source_name)+(info->(sB.filenameSize+2))];
+				char		content_path[strlen(source_name)+((info->sB).filenameSize+2)];
 
 				if((dir = opendir(source_name)) == NULL)
 				{
@@ -1618,23 +1618,25 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 					free(source_name);
 					return false;
 				}
-				source_mds = (MDS*) ((info->inodeTable) + source_nodeid*(info->inodeSize) + sizeof(bool) + (info->(sB.filenameSize)));
-				data.datablocks = (int*) ((info->inodeTable) + source_nodeid*(info->inodeSize) +sizeof(bool) + (info->(sB.filenameSize)) + sizeof(MDS));
+				move = source_nodeid*(info->inodeSize) + sizeof(bool) + ((info->sB).filenameSize);
+				source_mds = (MDS*) (info->inodeTable + move);
+				move += sizeof(MDS);
+				data.datablocks = (int*) (info->inodeTable + move);
 
 				// Get file's size
 				source_end = entity.st_size;
-				size_to_read = ((info->(sB.blockSize)) > source_end) ? source_end : (info->(sB.blockSize));
+				size_to_read = (((info->sB).blockSize) > source_end) ? source_end : ((info->sB).blockSize);
 				// Go to the beginning and read file's contents
 				CALL(lseek(source_fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 				SAFE_READ(source_fd,fileBuffer,0,sizeof(char),size_to_read);
 
 				// Fill file's data
-				for(int j=0; j<((info->(sB.maxFileDatablockNum))); j++)
+				for(int j=0; j<(((info->sB).maxFileDatablockNum)); j++)
 				{
 					data.datablocks[j] = getEmptyBlock();
 					// File's datablocks are increased by one
 					source_mds->datablocksCounter++;
-					move = data.datablocks[j]*(info->(sB.blockSize));
+					move = data.datablocks[j]*((info->sB).blockSize);
 					CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 					// Write source file's contents
 					SAFE_WRITE(info->fileDesc,fileBuffer,0,sizeof(char),size_to_read);
@@ -1645,7 +1647,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 					// If there are still info to read
 					if(current < source_end)
 					{
-						size_to_read = ((info->(sB.blockSize)) > (source_end-current)) ? (source_end-current) : ((info->(sB.blockSize)));
+						size_to_read = (((info->sB).blockSize) > (source_end-current)) ? (source_end-current) : (((info->sB).blockSize));
 						SAFE_READ(source_fd,fileBuffer,0,sizeof(char),size_to_read);
 					}
 					// Reached end of directory
@@ -1670,13 +1672,13 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 
 	return true;
 }
-/*
+
 bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 {
 	int		ignore = 0;
 	int		source_nodeid, dest_nodeid, dest_entities;
 	char		*initial;
-	char		new_path[strlen(destPath)+(info->(sB.filenameSize+2))];
+	char		new_path[strlen(destPath)+((info->sB).filenameSize+2)];
 	MDS		*source_mds, *dest_mds;
 	Datastream	data;
 
@@ -1717,112 +1719,26 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 	}
 
 	DIR		*dir;
-//	struct dirent	*content;
-	char		new_path[strlen(destPath)+(info->(sB.filenameSize+2))];
-
-	// Open destination directory
-	if((dir = opendir(source_name)) == NULL)
-	{
-		perror("Error opening source directory: ");
-		return false;
-	}
+	char		new_path[strlen(destPath)+((info->sB).filenameSize+2)];
 
 	// For every source file
 	for(i=0; i<listSize; i++)
 	{
 		source_name = pop_last_string(&sourceList);
 		if(source_name != NULL)
-		{
+		{	// If it is '.' or '..' entity, ignore it
+			if(!strcmp(source_name,".") || !strcmp(source_name,".."))
+			{
+				free(source_name);
+				continue;
+			}
+
 			// Get the nodeid of the entity the source path leads to
 			source_nodeid = traverse_cfs(info,source_name,getPathStartId(source_name));
 			// If source path was invalid
 			if(source_nodeid == -1)
 			{
 				printf("Path %s could not be found in cfs.\n",source_name);
-				free(source_name);
-				return false;
-			}
-			// New entity will be in destination directory
-			initial = (char*)malloc(strlen(source_name)+1);
-			strcpy(initial,destPath);
-			split = strtok(initial,"/");
-			temp = strtok(NULL,"/");
-			while(temp != NULL)
-			{
-				split = temp;
-				temp = strtok(NULL,"/");
-			}
-			strcpy(new_path,destPath);
-			strcat(new_path,"/");
-			strcat(new_path,split);
-			free(initial);
-
-			// Get source's metadata
-			source_mds = (MDS*) ((info->inodeTable) + source_nodeid*(info->inodeSize) + sizeof(bool) + (info->(sB.filenameSize)));
-			// If it is a directory
-			if(source_mds->type == Directory)
-			{
-			}
-			// If it is a file
-			else
-			{
-			}
-		}
-			
-		else
-			break;
-	}
-	// If less files than expected were found
-	if(i < listSize)
-	{
-		printf("Input error, problem with list of source files.\n");
-		return false;
-	}
-
-
-
-	// Get the nodeid of the entity the destination path leads to
-	dest_nodeid = traverse_cfs(info,destPath,getPathStartId(destPath));
-	// If destination path was invalid
-	if(dest_nodeid == -1)
-	{
-		printf("Path %s could not be found in cfs.\n",destPath);
-		return false;
-	}
-	// Get destination directory's metadata
-	dest_mds = (MDS*) (inodeTable + dest_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-	if(dest_mds->type != Directory)
-	{
-		printf("Input error, destination path %s is not a directory.\n",inodeTable+dest_nodeid*inodeSize+sizeof(bool));
-		return false;
-	}
-	dest_entities = getDirEntities(info,destPath,NULL);
-
-	int	listSize, i;
-	char	*source_name = NULL;
-	// Get number of entities in sourceList
-	listSize = getLength(sourceList);
-	// If source entities require too much space
-	if(listSize > (sB.maxFilesPerDir - dest_entities))
-	{
-		printf("Error, not enough space in destination directory.\n");
-		return false;
-	}
-
-	int		move;
-	char		fileBuffer[sB.blockSize];
-	char		*split, *temp;
-	struct stat	entity;
-	// For every source file
-	for(i=0; i<listSize; i++)
-	{
-		source_name = pop_last_string(&sourceList);
-		if(source_name != NULL)
-		{
-			// If source entity does not exist
-			if(access(source_name,F_OK) == -1)
-			{
-				printf("Input error, source entity %s does not exist.\n",source_name);
 				free(source_name);
 				return false;
 			}
@@ -1838,115 +1754,61 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 			}
 			strcpy(new_path,destPath);
 			strcat(new_path,"/");
-			strcat(new_path,split);
+			// If current entity is the root, new directory's name will be the name of the cfs file
+			if(!strcmp(split,"/"))
+				strcat(new_path,info->fileName);
+			else
+				strcat(new_path,split);
 			free(initial);
 
-			// Try to get source's type
-			if(stat(source_name,&entity) == -1)
-			{
-				perror("Error with stat in source entity: ");
-				free(source_name);
-				return false;
-			}
+			// Get source's metadata
+			source_mds = (MDS*) ((info->inodeTable) + source_nodeid*(info->inodeSize) + sizeof(bool) + ((info->sB).filenameSize));
 			// If it is a directory
-			if(S_ISDIR(entity.st_mode))
+			if(source_mds->type == Directory)
 			{
-				DIR		*dir;
-				struct dirent	*content;
-				char		content_path[strlen(source_name)+sB.filenameSize+2];
-
-				if((dir = opendir(source_name)) == NULL)
-				{
-					perror("Error opening source directory: ");
-					free(source_name);
-					return false;
-				}
-
-				// Create a new directory in cfs (under the appropriate parent directory)
-				source_nodeid = cfs_mkdir(info,new_path);
-				if(source_nodeid == -1)
-				{
-					free(source_name);
-					return false;
-				}
-
+				// Create subdirectory
+				CALL(mkdir(new_path, S_IRWXU | S_IXGRP),-1,"Error creating directory from cfs: ",1,ignore);
+				// Get subdirectory's contents and export them
 				string_List	*contentList = NULL;
-				while((content = readdir(dir)) != NULL)
-				{
-					if(strcmp(content->d_name,".") && strcmp(content->d_name,".."))
-					{
-						strcpy(content_path,source_name);
-						strcat(content_path,"/");
-						strcat(content_path,content->d_name);
-						add_stringNode(&contentList,content_path);
-						cfs_import(info,contentList,new_path);
-						contentList = NULL;
-					}
-				}
-				closedir(dir);
+				getDirEntities(info,source_name,&contentList);
+				cfs_export(info,contentList,new_path);
 			}
 			// If it is a file
-			else if(S_ISREG(entity.st_mode))
+			else
 			{
-				int	source_fd, size_to_read, source_end, current;
+				int		move;
+				int		source_fd;
+				char		fileBuffer[(info->sB).blockSize];
+				MDS		*source_mds;
+				Datastream	data;
 
-				if((source_fd = open(source_name, O_RDONLY)) == -1)
+				// Create file
+				CALL(creat(new_path, S_IRWXU | S_IXGRP),-1,"Error creating file from cfs: ",1,source_fd);
+
+				move = source_nodeid*(info->inodeSize) + sizeof(bool) + sB.filenameSize + sizeof(MDS);
+				data.datablocks = (int*) (info->inodeTable + move);
+
+				for(int i=0; i<((info->sB).maxFileDatablockNum); i++)
 				{
-					perror("Error opening source file: ");
-					free(source_name);
-					return false;
-				}
-
-				// Create a new file in cfs (under the appropriate parent directory)
-				source_nodeid = cfs_touch(info,new_path,CRE);
-				if(source_nodeid == -1)
-				{
-					free(source_name);
-					return false;
-				}
-				source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-				data.datablocks = (int*) (inodeTable + source_nodeid*inodeSize +sizeof(bool) + sB.filenameSize + sizeof(MDS));
-
-				// Get file's size
-				source_end = entity.st_size;
-				size_to_read = (sB.blockSize > source_end) ? source_end : sB.blockSize;
-				// Go to the beginning and read file's contents
-				CALL(lseek(source_fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-				SAFE_READ(source_fd,fileBuffer,0,sizeof(char),size_to_read);
-
-				// Fill file's data
-				for(int j=0; j<(sB.maxFileDatablockNum); j++)
-				{
-					data.datablocks[j] = getEmptyBlock();
-					// File's datablocks are increased by one
-					source_mds->datablocksCounter++;
-					move = data.datablocks[j]*sB.blockSize;
-					CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-					// Write source file's contents
-					SAFE_WRITE(info->fileDesc,fileBuffer,0,sizeof(char),size_to_read);
-
-					// Read source file's next contents
-					// Get current location in source directory
-					CALL(lseek(source_fd,0,SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,current);
-					// If there are still info to read
-					if(current < source_end)
+					if(data.datablocks[i] != -1)
 					{
-						size_to_read = (sB.blockSize > (source_end-current)) ? (source_end-current) : (sB.blockSize);
-						SAFE_READ(source_fd,fileBuffer,0,sizeof(char),size_to_read);
+						move = data.datablocks[i]*((info->sB).blockSize);
+						CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+						SAFE_READ(info->fileDesc,fileBuffer,0,sizeof(char),(info->sB).blockSize);
+						SAFE_WRITE(source_fd,fileBuffer,0,sizeof(char),(info->sB).blockSize);
 					}
-					// Reached end of directory
-					else
-						break;
 				}
+
 				close(source_fd);
-				source_mds->size += source_end;
 			}
+
 			free(source_name);
 		}
-			
+
 		else
 			break;
 	}
+
 	// If less files than expected were found
 	if(i < listSize)
 	{
@@ -1956,7 +1818,7 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 
 	return true;
 }
-*/
+
 int cfs_create(char *filename,int bSize,int nameSize,unsigned int maxFSize,int maxDirFileNum)
 {
 	int		fd = 0, ignore = 0;

@@ -411,7 +411,7 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
-/*				bool		exported;
+				bool		exported;
 				char		*option_prev = NULL;
 				string_List	*sourceList = NULL;
 
@@ -438,7 +438,7 @@ int main(void) {
 					}
 				}
 				destroy_stringList(sourceList);
-*/			}
+			}
 		}
 		else if(!strcmp(command,"cfs_create"))
 		{
@@ -450,7 +450,6 @@ int main(void) {
 				printf("Input error, too few arguments.\n");
 			else
 			{
-				filename = NULL;
 				while(option != NULL)
 				{
 					if(!strcmp(option,"-bs"))

@@ -1,6 +1,3 @@
-#include "mds.h"
-#include "disk.h"
-
 typedef struct {
     superBlock	sB;
     char        *fileName;
