@@ -625,33 +625,37 @@ void append_file(int fd,int source_nodeid,int output_nodeid)
 	output_mds->size += source_mds->size;
 }
 
-int getDirEntities(int fd, int dir_nodeid, string_List **content)
+int getDirEntities(int fd, char *directory_path, string_List **content)
 {
-	int 	ignore;
-	MDS 	*dir_mds = (MDS*) (inodeTable + dir_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-	int 	*dir_data = (int*) inodeTable + dir_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS);
-	int 	 dir_dataBlocksNum = dir_mds->datablocksCounter;
+	if (directory_path == NULL)
+		return -1;
+	int 	 ignore;
+	int 	 directory_nodeid = traverse_cfs(fd, directory_path, getPathStartId(directory_path));
+	int 	*dir_data = (int*) (inodeTable + directory_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
 
 	char 	 fileName[sB.filenameSize];
+	char	 path[strlen(directory_path) + sB.filenameSize + 2];
 	int 	 contentCounter = 0;
 	int 	 pairCounter;
-
-	for (int i=0; i < dir_dataBlocksNum; i++) {
-		if(dir_data[i] != -1) {
+	for (int i=0; i < sB.maxFileDatablockNum; i++) {
+		if (dir_data[i] != -1) {
 			CALL(lseek(fd,dir_data[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 			SAFE_READ(fd,&pairCounter,0,sizeof(int),sizeof(int));
 			if(content != NULL) {
 				for (int k=0; k < pairCounter; k++) {
-					SAFE_READ(fd,fileName,0,sizeof(char),sB.filenameSize);
 					CALL(lseek(fd,dir_data[i]*sB.blockSize + sizeof(int) + k*(sB.filenameSize+sizeof(int)),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-
-					add_stringNode(content, fileName);
+					SAFE_READ(fd,fileName,0,sizeof(char),sB.filenameSize);
+					if(strcmp(fileName, ".") != 0 && strcmp(fileName, "..") != 0) {
+						strcpy(path, directory_path);
+						strcat(path, "/");
+						strcat(path, fileName);
+						add_stringNode(content, path);
+					}
 				}
 			}
 			contentCounter += pairCounter;
 		}
 	}
-
 	return contentCounter;
 }
 

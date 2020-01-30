@@ -205,6 +205,7 @@ int cfs_mkdir(int fd,char *dirname)
 	int		ignore = 0;
 	int		new_nodeid;
 	int		parent_nodeid, i, offset;
+	char	parent_path[strlen(dirname)+1];
 	char		new_name[sB.filenameSize+1];
 	bool		busy;
 	time_t		curr_time;
@@ -241,8 +242,13 @@ int cfs_mkdir(int fd,char *dirname)
 	parent_data.datablocks = (int*)(inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
 
 	int	dataCounter, move, numofEntities;
-
-	numofEntities = getDirEntities(fd,parent_nodeid,NULL);
+	if (strlen(dirname)-strlen(new_name) > 0) {
+		strncpy(parent_path, dirname, strlen(dirname)-strlen(new_name));
+		parent_path[strlen(dirname)-strlen(new_name)] = '\0';
+	} else {
+		strcpy(parent_path, "./");
+	}
+	numofEntities = getDirEntities(fd,parent_path,NULL);
 
 	// Update parent directory's data
 	for(i=0; i<sB.maxFileDatablockNum; i++)
@@ -353,6 +359,7 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 		int		parent_nodeid, new_nodeid;
 		int		i, offset;
 		char		new_name[sB.filenameSize+1];
+		char	parent_path[strlen(filename)+1];
 		bool		busy;
 		time_t		curr_time;
 		MDS		*parent_mds, *metadata;
@@ -387,8 +394,13 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 		parent_data.datablocks = (int*)(inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
 
 		int	dataCounter, move, numofEntities;
-
-		numofEntities = getDirEntities(fd,parent_nodeid,NULL);
+		if (strlen(filename)-strlen(new_name) > 0) {
+			strncpy(parent_path, filename, strlen(filename)-strlen(new_name));
+			parent_path[strlen(filename)-strlen(new_name)] = '\0';
+		} else {
+			strcpy(parent_path, "./");
+		}
+		numofEntities = getDirEntities(fd,parent_path,NULL);
 
 		// Update parent directory's data
 		for(i=0; i<sB.maxFileDatablockNum; i++)
@@ -531,11 +543,15 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 
 int cfs_ln(int fileDesc,char* source_path,char* destination)
 {
-	char 	*source_name;
+	int 	 ignore;
+
+	char 	source_name[sB.filenameSize];
 	int 	 source_nodeid;
 	MDS		*source_mds;
 
 	int 	 directory_nodeid;
+	MDS		*directory_mds;
+	int		*directory_data;
 
 	char	 destination_path[strlen(destination) + sB.filenameSize + 2];
 	char	 destination_name[sB.filenameSize];
@@ -543,13 +559,14 @@ int cfs_ln(int fileDesc,char* source_path,char* destination)
 	MDS		*destination_mds;
 
 	// Check if source exists.
+	get_parent(fileDesc, source_path, source_name);
 	source_nodeid = traverse_cfs(fileDesc, source_path, getPathStartId(source_path));
 	if (source_nodeid == -1) {
 		printf("ln: cannot stat '%s': No such file or directory\n",source_path);
 		return -1;
 	}
 	// Check if source is file.
-	source_name = inodeTable + source_nodeid*inodeSize + sizeof(bool);
+	// source_name = inodeTable + source_nodeid*inodeSize + sizeof(bool);
 	source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
 	if (source_mds->type == Directory) {
 		printf("ln: cannot create link to directory\n");
@@ -558,19 +575,75 @@ int cfs_ln(int fileDesc,char* source_path,char* destination)
 	// Check if destination exists.
 	directory_nodeid = get_parent(fileDesc, destination, destination_name);
 	if (directory_nodeid == -1) {
-		printf("cp: cannot create directory '%s': No such file or directory\n", destination);
+		printf("ln: cannot create directory '%s': No such file or directory\n", destination);
 		return -1;
 	}
+
 	destination_nodeid = traverse_cfs(fileDesc,destination_name,directory_nodeid);
 	strcpy(destination_path, destination);
 	if (destination_nodeid != -1) {
 		destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-	} else {	// destination_nodeid == -1
-
+		if (destination_mds->type == Directory) {
+			strcpy(destination_name, source_name);
+			directory_nodeid = destination_nodeid;
+			strcat(destination_path, "/");
+			strcat(destination_path, source_name);
+		} else {
+			printf("ln: cannot overwrite an entity at '%s' with link\n", destination_path);
+			return -1;
+		}
 	}
-	// Create
+	directory_mds = (MDS*) (inodeTable + directory_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	// Go to directory's data.
+	directory_data = (int*)(inodeTable + directory_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
+	int	dataCounter, move, numofEntities = 0;
 
-	// return destination_nodeid;
+	// Update directory's data.
+	for(int i=0; i<sB.maxFileDatablockNum; i++)
+	{
+		// Check if current datablock is empty.
+		if(directory_data[i] == -1)
+		{
+			directory_data[i] = getEmptyBlock();
+			// Go to datablock
+			move = directory_data[i]*sB.blockSize + sizeof(int);
+			CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			dataCounter = 0;
+			directory_mds->datablocksCounter++;
+		}
+		else
+		{
+			// Go to datablock
+			move = directory_data[i]*sB.blockSize;
+			CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_READ(fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
+			numofEntities += dataCounter;
+		}
+		// If directory has no datablocks available
+		if(directory_mds->datablocksCounter == sB.maxDirDatablockNum && numofEntities == sB.maxEntitiesPerBlock*sB.maxDirDatablockNum)
+		{
+			printf("ln: not enough space in directory to create link '%s' to '%s'.\n",source_name, destination_path);
+			return -1;
+		}
+		// If there is space for another entity
+		if(dataCounter < sB.maxEntitiesPerBlock)
+		{
+			source_mds->linkCounter++;
+
+			// Go after the last entity in the datablock
+			CALL(lseek(fileDesc,dataCounter*(sB.filenameSize+sizeof(int)),SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_WRITE(fileDesc,destination_name,0,sizeof(char),sB.filenameSize);
+			SAFE_WRITE(fileDesc,&source_nodeid,0,sizeof(int),sizeof(int));
+			// Increase datablock's counter
+			dataCounter++;
+			CALL(lseek(fileDesc,(directory_data[i])*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_WRITE(fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
+			break;
+		}
+	}
+
+	directory_mds->size += sB.filenameSize + sizeof(int);
+	return source_nodeid;
 }
 
 bool cfs_pwd() 
@@ -724,12 +797,12 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path)
 		if(path_nodeId != -1) {
 			path_MDS = (MDS *) (inodeTable + path_nodeId*inodeSize + sizeof(bool) + sB.filenameSize);
 		} else {
-			printf("Input error, '%s' is not a valid path.\n",path);
+			printf("ls: cannot access '%s': No such file or directory.\n",path);
 			return false;
 		}
 		// Check if the returned id is a directory. If it is not print error.
 		if (path_MDS->type != Directory) {
-			printf("Input error, '%s' is not a valid path.\n",path);
+			printf("ls: target '%s' is not a directory.\n",path);
 			return false;
 		}
 
@@ -835,7 +908,7 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 	string_List *directory_inodeList;
 
 	char 		*source_path;
-	char 		*source_name;
+	char 		 source_name[sB.filenameSize];
 	int 		 source_nodeid;
 	MDS 		*source_mds;
 
@@ -858,6 +931,7 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 	while (sourceList != NULL) {
 		source_path = pop_last_string(&sourceList);
 		// Get source inode.
+		get_parent(fileDesc, source_path, source_name);
 		source_nodeid = traverse_cfs(fileDesc, source_path, getPathStartId(source_path));
 		// Check if source_path has valid value.
 		if(source_nodeid == -1) {
@@ -865,7 +939,7 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 			free(source_path);
 			continue;
 		}
-		source_name = inodeTable + source_nodeid*inodeSize + sizeof(bool);
+		// source_name = inodeTable + source_nodeid*inodeSize + sizeof(bool);
 		source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
 		if (source_mds->type == Directory && cp_modes[CP_R] == false && cp_modes[CP_RR] == false) {
 			printf("cp: -r not specified; omitting directory '%s'\n", source_path);
@@ -992,7 +1066,7 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 	bool		rm_modes[rm_mode_Num];
 
 	char 		*source_path;
-	char 		*source_name;
+	char 		 source_name[sB.filenameSize];
 	int 		 source_nodeid;
 	MDS 		*source_mds;
 
@@ -1017,6 +1091,7 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 	while (sourceList != NULL) {
 		source_path = pop_last_string(&sourceList);
 		// Get source inode.
+		get_parent(fileDesc, source_path, source_name);
 		source_nodeid = traverse_cfs(fileDesc, source_path, getPathStartId(source_path));
 		// Check if source_path has valid value.
 		if(source_nodeid == -1) {
@@ -1024,7 +1099,7 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 			free(source_path);
 			continue;
 		}
-		source_name = inodeTable + source_nodeid*inodeSize + sizeof(bool);
+		// source_name = inodeTable + source_nodeid*inodeSize + sizeof(bool);
 		source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
 		//--------------------------------------------------------------------------------
 		// Get destination inode.
@@ -1385,17 +1460,14 @@ bool cfs_cat(int fileDesc, string_List *sourceList, char *outputPath)
 bool cfs_import(int fileDesc,string_List *sourceList,char *destPath)
 {
 	int		ignore = 0;
-	int		start;
 	int		source_nodeid, dest_nodeid, dest_entities;
 	char		*initial;
 	char		new_path[strlen(destPath)+sB.filenameSize+2];
 	MDS		*source_mds, *dest_mds;
 	Datastream	data;
 
-	// Find the nodeid of the first entity in 'destPath'
-	start = getPathStartId(destPath);
 	// Get the nodeid of the entity the destination path leads to
-	dest_nodeid = traverse_cfs(fileDesc,destPath,start);
+	dest_nodeid = traverse_cfs(fileDesc,destPath,getPathStartId(destPath));
 	// If destination path was invalid
 	if(dest_nodeid == -1)
 	{
@@ -1409,7 +1481,7 @@ bool cfs_import(int fileDesc,string_List *sourceList,char *destPath)
 		printf("Input error, destination path %s is not a directory.\n",inodeTable+dest_nodeid*inodeSize+sizeof(bool));
 		return false;
 	}
-	dest_entities = getDirEntities(fileDesc,dest_nodeid,NULL);
+	dest_entities = getDirEntities(fileDesc,destPath,NULL);
 
 	int	listSize, i;
 	char	*source_name = NULL;

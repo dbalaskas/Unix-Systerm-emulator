@@ -242,7 +242,7 @@ int main(void) {
 
 				option_prev = strtok_r(NULL," \t",&rest);
 				option = strtok_r(NULL," \t",&rest);
-				// At least two files required
+				// At least to files required
 				if(option_prev == NULL || option == NULL)
 					printf("Input error, too few arguments.\n");
 
@@ -271,6 +271,13 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
+				if ((option = strtok_r(NULL," \t",&rest)) == NULL) {
+					printf("ln: missing file operand\n");
+				} else if ((value = strtok_r(NULL," \t",&rest)) == NULL) {
+					printf("ln: missing destination file operand after '%s'\n", option);					
+				} else {
+					cfs_ln(fileDesc, option, value);
+				}
 			}
 		}
 		else if(!strcmp(command,"cfs_mv"))
@@ -368,7 +375,7 @@ int main(void) {
 
 				option_prev = strtok_r(NULL," \t",&rest);
 				option = strtok_r(NULL," \t",&rest);
-				// At least two files required
+				// At least to files required
 				if(option_prev == NULL || option == NULL)
 					printf("Input error, too few arguments.\n");
 
