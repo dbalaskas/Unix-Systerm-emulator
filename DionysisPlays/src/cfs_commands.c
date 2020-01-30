@@ -1022,7 +1022,9 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 								continue;
 							}
 						}
+						cfs_touch(fileDesc, destination_path, MOD);
 						replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+						destination_mds->linkCounter = 1;
 					} else if (source_mds->type != Directory && destination_mds->type == Directory) {
 						printf("cp: cannot overwrite directory '%s' with non-directory '%s'\n", destination_path, source_path);
 					} else if (source_mds->type == Directory && destination_mds->type != Directory) {
@@ -1048,7 +1050,9 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 							continue;
 						}
 					}
+					cfs_touch(fileDesc, destination_path, MOD);
 					replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+					destination_mds->linkCounter = 1;
 				}
 			}
 		}
@@ -1174,7 +1178,9 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 								continue;
 							}
 						}
+						cfs_touch(fileDesc, destination_path, MOD);
 						replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+						destination_mds->linkCounter = 1;
 					} else if (source_mds->type != Directory && destination_mds->type == Directory) {
 						printf("mv: cannot overwrite directory '%s' with non-directory '%s'\n", destination_path, source_path);
 					} else if (source_mds->type == Directory && destination_mds->type != Directory) {
@@ -1201,7 +1207,9 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 							continue;
 						}
 					}
+					cfs_touch(fileDesc, destination_path, MOD);
 					replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+					destination_mds->linkCounter = 1;
 				}
 			}
 		}
@@ -1294,13 +1302,18 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 					content_data.datablocks = (int*) (inodeTable + content_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
 					// If it is a file, it will be removed
 					if(content_mds->type == File)
-					{	// Push allocated datablocks in holeList
-						for(int k=0; k<sB.maxFileDatablockNum; k++)
-							if(content_data.datablocks[k] != -1)
-							{
-								addNode(&holes,content_data.datablocks[k]);
-								sB.ListSize++;
-							}
+					{
+						content_mds->linkCounter--;
+						if(!content_mds->linkCounter)
+						{
+							// Push allocated datablocks in holeList
+							for(int k=0; k<sB.maxFileDatablockNum; k++)
+								if(content_data.datablocks[k] != -1)
+								{
+									addNode(&holes,content_data.datablocks[k]);
+									sB.ListSize++;
+								}
+						}
 					}
 					else	// If it is a directory
 					{	// If it has contnents
@@ -1313,6 +1326,9 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 								strcat(recursion_name,"/");
 								strcat(recursion_name,content_name);
 								cfs_rm(fileDesc,modes,recursion_name);
+								// Remove directory's first datablock (with the current and parent entities)
+								addNode(&holes,content_data.datablocks[0]);
+								sB.ListSize++;
 							}
 							// Else, it will not be removed. If there is a hole inside datablock, fill it
 							else if(j > newCounter)
@@ -1321,12 +1337,14 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 								CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 								SAFE_WRITE(fileDesc,content_name,0,sizeof(char),sB.filenameSize);
 								SAFE_WRITE(fileDesc,&content_nodeid,0,sizeof(int),sizeof(int));
+								printf("rm: cannot remove '%s': Is a non-empty directory", dirname);
 								// Increase newCounter and go to the next entity
 								newCounter++;
 								continue;
 							}
 							else
 							{
+								printf("rm: cannot remove '%s': Is a non-empty directory", dirname);
 								newCounter++;
 								continue;
 							}
@@ -1337,7 +1355,7 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 					metadata->size -= sB.filenameSize + sizeof(int);
 					sB.nodeidCounter--;
 					// If it is the last in inodeTable do not keep the hole (inner holes should be maintained)
-					if(content_nodeid == sB.iTableCounter)
+					if(content_nodeid == (sB.iTableCounter-1))
 						sB.iTableCounter--;
 				}
 				// If it is the current or parent entity
@@ -1345,7 +1363,7 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 					newCounter++;
 			}
 			// If datablock has still contents (maybe only current and parent entity), update counter
-			if(newCounter >= 2)
+			if(newCounter > 0)
 			{
 				CALL(lseek(fileDesc,data.datablocks[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 				SAFE_WRITE(fileDesc,&newCounter,0,sizeof(int),sizeof(int));

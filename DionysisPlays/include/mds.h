@@ -1,7 +1,7 @@
 /* FILE: mds.h */
 
 #include <time.h>
-typedef enum {File, Directory, Link} cfs_type;
+typedef enum {File, Directory} cfs_type;
 
 typedef struct {
 	int				nodeid;
