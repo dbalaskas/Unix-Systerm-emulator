@@ -5,11 +5,17 @@
 void printCommands();
 
 int main(void) {
-	char	*ignore = NULL;
-	char	*command, *temp, *option, *value, *rest;
-	char	 line[256], name[256];
-	int	 fileDesc = -1;						//updated by cfs_create or cfs_workwith
-	bool	 open_cfs = false;
+	char		*ignore = NULL;
+	char		*command, *temp, *option, *value, *rest;
+	char	 	line[256], name[256];
+	int	 	fileDesc = -1;						//updated by cfs_create or cfs_workwith
+	bool	 	open_cfs = false;
+	cfs_info	cfsInfo;
+
+	// Initialize cfsInfo
+	cfsInfo.fileName = NULL;
+	cfsInfo.inodeTable = NULL;
+	cfsInfo.holes = NULL;
 
 	printf("\n");
 	printCommands();
@@ -44,8 +50,9 @@ int main(void) {
 					int len = strlen(option);
 					char *last_four = &option[len-4];
 					if(strcmp(last_four, ".cfs") == 0) {
-						fileDesc = cfs_workwith(option);
-						if (fileDesc != -1) {
+						strcpy(cfsInfo.fileName,option);
+						fileDesc = cfs_workwith(&cfsInfo);
+						if (cfsInfo.fileDesc != -1) {
 							open_cfs = true;
 							printf("Working with cfs file %s...\n",option);
 						}
@@ -72,7 +79,7 @@ int main(void) {
 				while(option != NULL)
 				{
 					strcpy(name,option);
-					created_dir = cfs_mkdir(fileDesc,name);
+					created_dir = cfs_mkdir(&cfsInfo,name);
 					if(created_dir != -1)
 						printf("Directory %s created.\n",option);
 
@@ -109,7 +116,7 @@ int main(void) {
 					else
 					{
 						strcpy(name,option);
-						touched = cfs_touch(fileDesc,name,mode);
+						touched = cfs_touch(&cfsInfo,name,mode);
 						if(touched != -1)
 							printf("File %s touched in cfs.\n",option);
 					}
@@ -141,7 +148,7 @@ int main(void) {
 				if((rest != NULL) && (strcmp(rest,"")))
 					printf("Input error, too many arguments.\n");
 				else
-					cfs_cd(fileDesc, option);
+					cfs_cd(&cfsInfo, option);
 			}
 		}
 		else if(!strcmp(command,"cfs_ls"))
@@ -179,11 +186,11 @@ int main(void) {
 					option = strtok_r(NULL," \t",&rest);
 				}
 				if (directories == NULL) {
-					cfs_ls(fileDesc, ls_modes, NULL);
+					cfs_ls(&cfsInfo, ls_modes, NULL);
 				} else {
 					while (directories != NULL) {
 						if((dirname = pop_last_string(&directories)) != NULL) {
-							cfs_ls(fileDesc, ls_modes, dirname);
+							cfs_ls(&cfsInfo, ls_modes, dirname);
 							free(dirname);
 						}
 					}
@@ -226,7 +233,7 @@ int main(void) {
 					if (sources == NULL) 
 						printf("cp: missing destination file operand after '%s'\n", destination);
 					else
-						cfs_cp(fileDesc, cp_modes, sources, destination);
+						cfs_cp(&cfsInfo, cp_modes, sources, destination);
 				}
 			}
 		}
@@ -242,7 +249,7 @@ int main(void) {
 
 				option_prev = strtok_r(NULL," \t",&rest);
 				option = strtok_r(NULL," \t",&rest);
-				// At least to files required
+				// At least two files required
 				if(option_prev == NULL || option == NULL)
 					printf("Input error, too few arguments.\n");
 
@@ -253,7 +260,7 @@ int main(void) {
 					option = strtok_r(NULL," \t",&rest);
 					if(option == NULL)
 					{
-						appended = cfs_cat(fileDesc,sourceList,option_prev);
+						appended = cfs_cat(&cfsInfo,sourceList,option_prev);
 						if(appended)
 						{
 							printf("List of sources appended to output file %s.\n",option_prev);
@@ -276,7 +283,7 @@ int main(void) {
 				} else if ((value = strtok_r(NULL," \t",&rest)) == NULL) {
 					printf("ln: missing destination file operand after '%s'\n", option);					
 				} else {
-					cfs_ln(fileDesc, option, value);
+					cfs_ln(&cfsInfo, option, value);
 				}
 			}
 		}
@@ -311,7 +318,7 @@ int main(void) {
 					if (sources == NULL) 
 						printf("mv: missing destination file operand after '%s'\n", destination);
 					else
-						cfs_mv(fileDesc, mv_modes, sources, destination);
+						cfs_mv(&cfsInfo, mv_modes, sources, destination);
 				}
 			}
 		}
@@ -353,7 +360,7 @@ int main(void) {
 					{
 						if((dirname = pop_last_string(&directories)) != NULL)
 						{
-							removed = cfs_rm(fileDesc,rm_modes,dirname);
+							removed = cfs_rm(&cfsInfo,rm_modes,dirname);
 							if(removed)
 								printf("Removed %s's contents from cfs.\n",dirname);
 
@@ -375,7 +382,7 @@ int main(void) {
 
 				option_prev = strtok_r(NULL," \t",&rest);
 				option = strtok_r(NULL," \t",&rest);
-				// At least to files required
+				// At least two files required
 				if(option_prev == NULL || option == NULL)
 					printf("Input error, too few arguments.\n");
 
@@ -386,7 +393,7 @@ int main(void) {
 					option = strtok_r(NULL," \t",&rest);
 					if(option == NULL)
 					{
-						imported = cfs_import(fileDesc,sourceList,option_prev);
+						imported = cfs_import(&cfsInfo,sourceList,option_prev);
 						if(imported)
 						{
 							printf("List of sources imported to output directory %s.\n",option_prev);
@@ -404,13 +411,39 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
-			}
+/*				bool		exported;
+				char		*option_prev = NULL;
+				string_List	*sourceList = NULL;
+
+				option_prev = strtok_r(NULL," \t",&rest);
+				option = strtok_r(NULL," \t",&rest);
+				// At least two files required
+				if(option_prev == NULL || option == NULL)
+					printf("Input error, too few arguments.\n");
+
+				while(option_prev != NULL && option != NULL)
+				{
+					add_stringNode(&sourceList,option_prev);
+					option_prev = option;
+					option = strtok_r(NULL," \t",&rest);
+					if(option == NULL)
+					{
+						exported = cfs_export(&cfsInfo,sourceList,option_prev);
+						if(exported)
+						{
+							printf("List of sources exported to output directory %s.\n",option_prev);
+							sourceList = NULL;
+						}
+						option_prev = NULL;
+					}
+				}
+				destroy_stringList(sourceList);
+*/			}
 		}
 		else if(!strcmp(command,"cfs_create"))
 		{
 			int	bSize = -1, filenameSize = -1, maxFSize = -1, maxDirFileNum = -1;
 			int	nameSize = FILENAME_SIZE;
-			char	*filename;
 
 			option = strtok_r(NULL," \t",&rest);
 			if(option == NULL)
@@ -443,34 +476,33 @@ int main(void) {
 					}
 					else if(option != NULL)
 					{
-						filename = (char*)malloc(nameSize*sizeof(char));
-						strcpy(filename,option);
+						cfsInfo.fileName = (char*)malloc(nameSize*sizeof(char));
+						strcpy(cfsInfo.fileName,option);
 					}
 					option = strtok_r(NULL," \t",&rest);
 				}
-				if (filename == NULL) {
+				if (cfsInfo.fileName == NULL) {
 					printf("Input error, too few arguments.\n");
 				} else {
-					if (access( filename, F_OK ) != -1){
+					if (access( cfsInfo.fileName, F_OK ) != -1){
 						printf("cfs file already exists\n");
 					} else {
-						int len = strlen(filename);
-        	                               	char *last_four = &filename[len-4];
+						int len = strlen(cfsInfo.fileName);
+        	                               	char *last_four = &(cfsInfo.fileName)[len-4];
 	                                       	if(strcmp(last_four, ".cfs") != 0) {
-							strncat(filename, ".cfs", 4);
+							strncat(cfsInfo.fileName, ".cfs", 4);
 						}
-						fileDesc = cfs_create(filename,bSize,filenameSize,maxFSize,maxDirFileNum);
-						if(fileDesc != -1)
-							printf("Cfs file %s created.\n",filename);
+						cfsInfo.fileDesc = cfs_create(&cfsInfo,bSize,filenameSize,maxFSize,maxDirFileNum);
+						if(cfsInfo.fileDesc != -1)
+							printf("Cfs file %s created.\n",cfsInfo.fileName);
 					}
-					free(filename);
 				}
 			}
 		}
 		else if(!strcmp(command,"cfs_close"))
 		{
 			if (open_cfs == true) {
-				cfs_close(fileDesc);
+				cfs_close(&cfsInfo);
 				open_cfs = false;
 				printf("cfs file is closed.\n");
 			}
@@ -490,7 +522,11 @@ int main(void) {
 				else if(option == NULL)
 					printf("Input error, please give a path.\n");
 				else
-					print_data(fileDesc,option);
+				{	// Save possible changes in cfs file and re-open it
+					cfs_close(&cfsInfo);
+					cfs_workwith(&cfsInfo);
+					print_data(&cfsInfo,option);
+				}
 			}
 		}
 		else if(!strcmp(command,"help"))
@@ -500,7 +536,9 @@ int main(void) {
 		else if(!strcmp(command,"cfs_exit"))
 		{
 			if(open_cfs == true)
-				cfs_close(fileDesc);
+				cfs_close(&cfsInfo);
+			if(cfsInfo.fileName != NULL)
+				free(cfsInfo.fileName);
 			printf("End of Program.\n");
 			return 0;
 		}

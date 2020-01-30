@@ -3,10 +3,10 @@
 
 typedef struct {
     superBlock	sB;
-    char        fileName;
+    char        *fileName;
     int         fileDesc;
-    int		    cfs_current_nodeid;
-    char		*inodeTable;
-    int		    inodeSize;
-    List		*holes;
+    int		cfs_current_nodeid;
+    char	*inodeTable;
+    int		inodeSize;
+    List	*holes;
 } cfs_info;

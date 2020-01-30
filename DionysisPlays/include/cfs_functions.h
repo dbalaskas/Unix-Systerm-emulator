@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include "mds.h"
 #include "disk.h"
-// #include "cfs_file.h"
+#include "cfs_file.h"
 
 typedef enum {false, true} 							bool;
 
@@ -54,15 +54,15 @@ if(returnVal == error)															\
 	}																			\
 }
 
-void update_superBlock(int);
-int traverse_cfs(int, char*,int);
+void update_superBlock(cfs_info*);
+int traverse_cfs(cfs_info*, char*,int);
 
 int getTableSpace();
 int getEmptyBlock();
-int get_parent(int,char*,char*);
+int get_parent(cfs_info*,char*,char*);
 int getPathStartId(char*);
-void replaceEntity(int,int,int);
-void append_file(int,int,int);
-int getDirEntities(int,char*,string_List**);
-void print_data(int,char*);
+void replaceEntity(cfs_info*,int,int);
+void append_file(cfs_info*,int,int);
+int getDirEntities(cfs_info*,char*,string_List**);
+void print_data(cfs_info*,char*);
 
