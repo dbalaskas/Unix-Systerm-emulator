@@ -23,10 +23,3 @@ typedef struct superblock {
 	int iTableBlocksNum;
 	int iTableCounter;
 } superBlock;
-
-
-//extern char *inodeTable;
-//extern int inodeSize;
-//extern superBlock sB;
-//extern List *holes;
-//extern int cfs_current_nodeid;

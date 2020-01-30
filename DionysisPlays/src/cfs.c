@@ -8,7 +8,6 @@ int main(void) {
 	char		*ignore = NULL;
 	char		*command, *temp, *option, *value, *rest;
 	char	 	line[256], name[256];
-	int	 	fileDesc = -1;						//updated by cfs_create or cfs_workwith
 	bool	 	open_cfs = false;
 	cfs_info	cfsInfo;
 
@@ -24,7 +23,7 @@ int main(void) {
 		fflush( stdout );
 		if (open_cfs == true) {
 			printf("\033[6;31m");
-			cfs_pwd();
+			cfs_pwd(&cfsInfo);
 			fflush( stdout );
 		}
 		printf("\033[6;31m$ ");
@@ -50,8 +49,10 @@ int main(void) {
 					int len = strlen(option);
 					char *last_four = &option[len-4];
 					if(strcmp(last_four, ".cfs") == 0) {
+						if(cfsInfo.fileName == NULL)
+							cfsInfo.fileName = (char*)malloc(strlen(option)+1);
 						strcpy(cfsInfo.fileName,option);
-						fileDesc = cfs_workwith(&cfsInfo);
+						cfsInfo.fileDesc = cfs_workwith(&cfsInfo);
 						if (cfsInfo.fileDesc != -1) {
 							open_cfs = true;
 							printf("Working with cfs file %s...\n",option);
@@ -135,8 +136,9 @@ int main(void) {
 				if(option != NULL)
 					printf("Input error, too many arguments.\n");
 				else
-					cfs_pwd();
+					cfs_pwd(&cfsInfo);
 			}
+			printf("\n");
 		}
 		else if(!strcmp(command,"cfs_cd"))
 		{
@@ -328,11 +330,11 @@ int main(void) {
 				printf("Cfs closed, try cfs_workwith first.\n");
 			else
 			{
-				bool		rm_modes[2];
+				bool		rm_modes[rm_mode_Num];
 				bool		removed;
 				char		*dirname;
 				string_List	*directories = NULL;
-				for (int i=0; i<2;i++)
+				for (int i=0; i<rm_mode_Num;i++)
 					rm_modes[i] = false;
 
 				option = strtok_r(NULL," \t",&rest);
@@ -487,8 +489,8 @@ int main(void) {
 						printf("cfs file already exists\n");
 					} else {
 						int len = strlen(cfsInfo.fileName);
-        	                               	char *last_four = &(cfsInfo.fileName)[len-4];
-	                                       	if(strcmp(last_four, ".cfs") != 0) {
+						char *last_four = cfsInfo.fileName+len-4;
+						if(strcmp(last_four, ".cfs") != 0) {
 							strncat(cfsInfo.fileName, ".cfs", 4);
 						}
 						cfsInfo.fileDesc = cfs_create(&cfsInfo,bSize,filenameSize,maxFSize,maxDirFileNum);

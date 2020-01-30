@@ -11,7 +11,7 @@ int cfs_workwith(cfs_info *info)
 	int	ignore = 0;
 	int	offset = 0, listOffset;
 	int	overflow_block, read_iblocks, metadata_blocknum;
-	int	current_iblock[(info->(sB.iTableBlocksNum))];
+	int	current_iblock[((info->sB).iTableBlocksNum)];
 	MDS	*metadata;
 
 	// CALL(open(filename, O_RDWR),-1,"Error opening file for cfs: ",2,fd);
@@ -27,22 +27,22 @@ int cfs_workwith(cfs_info *info)
 	SAFE_READ(info->fileDesc,&(info->sB),0,sizeof(superBlock),sizeof(superBlock));
 
 	// (first) Block with the inodeTable and the holeList
-	overflow_block = (info->(sB.nextSuperBlock));
+	overflow_block = ((info->sB).nextSuperBlock);
 	read_iblocks = 0;
 
 	// Size of an inodeTable element
-	info->inodeSize = sizeof(bool) + info->(sB.filenameSize) + sizeof(MDS) + (info->(sB.maxFileDatablockNum))*sizeof(int);
+	info->inodeSize = sizeof(bool) + (info->sB).filenameSize + sizeof(MDS) + ((info->sB).maxFileDatablockNum)*sizeof(int);
 	// Buffer to store info of an inodeTable element
 	char	buffer[(info->inodeSize)-sizeof(bool)];
         int	size_to_read, dataSize, readSize;
 	int	remainingDatablocks;
         int	*nodeId;
         int	numOfiNode = 0;
-        info->inodeTable = (char*)malloc((info->(sB.iTableCounter))*(info->inodeSize));
+        info->inodeTable = (char*)malloc(((info->sB).iTableCounter)*(info->inodeSize));
         info->holes = NULL;
 
 	// For every element of the inodeTable
-	for(int j=0; j<(info->(sB.nodeidCounter)); j++)
+	for(int j=0; j<((info->sB).nodeidCounter); j++)
 	{
 		// Start from the first block with the element's metadata
 		metadata_blocknum = 0;
@@ -50,30 +50,30 @@ int cfs_workwith(cfs_info *info)
 		// Will go to (the appropriate) block used by the inodeTable
 		read_iblocks += sizeof(int);
 		// Go to (the appropriate) block with the inodeTable
-		CALL(lseek(info->fileDesc,(overflow_block*(info->(sB.blockSize)))+read_iblocks,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		CALL(lseek(info->fileDesc,(overflow_block*((info->sB).blockSize))+read_iblocks,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 		// current_iblock[metadata] = appropriate block with metadata
 		SAFE_READ(info->fileDesc,current_iblock,metadata_blocknum*sizeof(int),sizeof(int),sizeof(int));
 		// Go to (the appropriate) block with metadata
-        	CALL(lseek(info->fileDesc,current_iblock[metadata_blocknum]*(info->(sB.blockSize)),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+        	CALL(lseek(info->fileDesc,current_iblock[metadata_blocknum]*((info->sB).blockSize),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 		// Will read filename and MDS struct for now (stored easily in only one block)
-		size_to_read = (info->(sB.filenameSize)) + sizeof(MDS);
-		SAFE_READ(info->fileDesc,buffer,metadata_blocknum*(info->(sB.blockSize)),sizeof(char),size_to_read);
+		size_to_read = ((info->sB).filenameSize) + sizeof(MDS);
+		SAFE_READ(info->fileDesc,buffer,metadata_blocknum*((info->sB).blockSize),sizeof(char),size_to_read);
 		readSize = size_to_read;
 
 		// Get datablocksCounter (number of datablocks) from metadata
-		metadata = (MDS*) (buffer + (info->(sB.filenameSize)));
+		metadata = (MDS*) (buffer + ((info->sB).filenameSize));
 		dataSize = (metadata->datablocksCounter)*sizeof(int);
 		// Rest of datablocks in inodeTable that will be empty for now
-		remainingDatablocks = (info->(sB.maxFileDatablockNum)) - metadata->datablocksCounter;
+		remainingDatablocks = ((info->sB).maxFileDatablockNum) - metadata->datablocksCounter;
 		// Read all datablocks with contents (from the appropriate blocks)
-		size_to_read = (dataSize > ((info->(sB.blockSize))-readSize)) ? ((info->(sB.blockSize))-readSize) : (dataSize);
+		size_to_read = (dataSize > (((info->sB).blockSize))-readSize) ? (((info->sB).blockSize)-readSize) : (dataSize);
 		// size_to_read must be a multiple of sizeof(int)
 		if(size_to_read % sizeof(int))
 			size_to_read -= size_to_read % sizeof(int);
 
 		while(dataSize > 0)
 		{
-			SAFE_READ(info->fileDesc,buffer,(metadata_blocknum*(info->(sB.blockSize)))+readSize,sizeof(char),size_to_read);
+			SAFE_READ(info->fileDesc,buffer,(metadata_blocknum*((info->sB).blockSize))+readSize,sizeof(char),size_to_read);
 			dataSize -= size_to_read;
 
 			// If there are more metadata in another block
@@ -85,29 +85,29 @@ int cfs_workwith(cfs_info *info)
 				read_iblocks += sizeof(int);
 
 				// If inodeTable has more elements, it is continued to another block (overflow)
-				if(read_iblocks == (info->(sB.blockSize)))
+				if(read_iblocks == ((info->sB).blockSize))
 				{
 					// Get overflow block
-					CALL(lseek(info->fileDesc,overflow_block*(info->(sB.blockSize)),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+					CALL(lseek(info->fileDesc,overflow_block*((info->sB).blockSize),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 					SAFE_READ(info->fileDesc,&overflow_block,0,sizeof(int),sizeof(int));
 					read_iblocks = sizeof(int);
 				}
 
 				// Go to (the appropriate) block with the inodeTable
-				CALL(lseek(info->fileDesc,(overflow_block*(info->(sB.blockSize)))+read_iblocks,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				CALL(lseek(info->fileDesc,(overflow_block*((info->sB).blockSize))+read_iblocks,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 				// current_iblock[metadata] = appropriate block with metadata
 				SAFE_READ(info->fileDesc,current_iblock,metadata_blocknum*sizeof(int),sizeof(int),sizeof(int));
 				// Go to (the appropriate) block with metadata
-		        	CALL(lseek(info->fileDesc,current_iblock[metadata_blocknum]*(info->(sB.blockSize)),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		        	CALL(lseek(info->fileDesc,current_iblock[metadata_blocknum]*((info->sB).blockSize),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 				readSize = 0;
-				size_to_read =(dataSize > ((info->(sB.blockSize))-readSize)) ? ((info->(sB.blockSize))-readSize) : (dataSize);
+				size_to_read =(dataSize > (((info->sB).blockSize)-readSize)) ? (((info->sB).blockSize)-readSize) : (dataSize);
 				// size_to_read must be a multiple of sizeof(int)
 				if(size_to_read % sizeof(int))
 					size_to_read -= size_to_read % sizeof(int);
 			}
 		}
 
-	        nodeId = (int*) (buffer + (info->(sB.filenameSize)));				//update inodeTable
+	        nodeId = (int*) (buffer + ((info->sB).filenameSize));				//update inodeTable
         	// Find the right place for the inode ~based on nodeid~ (holes in the inodeTable have to be maintained)
             	while(numOfiNode < *nodeId)
 	        {
@@ -132,20 +132,20 @@ int cfs_workwith(cfs_info *info)
 	        numOfiNode++;
 	}
 
-	int	difference = (info->(sB.iTableBlocksNum))*sizeof(int);
+	int	difference = ((info->sB).iTableBlocksNum)*sizeof(int);
 	int	overflow_prev, overflow_next;
-	int	remainingblockSize = (info->(sB.blockSize)) - sizeof(int);
+	int	remainingblockSize = ((info->sB).blockSize) - sizeof(int);
 	// Start from first block with the inodeTable
-	overflow_block = (info->(sB.nextSuperBlock));
+	overflow_block = ((info->sB).nextSuperBlock);
 	// Find the end of the inodeTable
 	while(difference > 0)
 	{
-		CALL(lseek(info->fileDesc,overflow_block*(info->(sB.blockSize)),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		CALL(lseek(info->fileDesc,overflow_block*((info->sB).blockSize),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 		overflow_prev = overflow_block;
 		SAFE_READ(info->fileDesc,&overflow_block,0,sizeof(int),sizeof(int));
 
 		// If there is another overflow block
-		if((difference > remainingblockSize) || (difference == remainingblockSize && (info->(sB.ListSize)) > 0))
+		if((difference > remainingblockSize) || (difference == remainingblockSize && ((info->sB).ListSize) > 0))
 			difference -= remainingblockSize;
 		// InodeTable ends in current block and there is space left in the same block
 		else
@@ -160,12 +160,12 @@ int cfs_workwith(cfs_info *info)
 	// Number of bytes left in current block, after the inodeTable
 	int	freeSpaces = remainingblockSize - difference;
 	// Read list of holes
-	for(int i=0; i<(info->(sB.ListSize)); i++)
+	for(int i=0; i<((info->sB).ListSize); i++)
         {
 		// If there is enough space in current block to read
 		if(freeSpaces > 0)
 		{
-			listOffset = overflow_block*(info->(sB.blockSize)) + ((info->(sB.blockSize)) - freeSpaces);
+			listOffset = overflow_block*((info->sB).blockSize) + (((info->sB).blockSize) - freeSpaces);
         		CALL(lseek(info->fileDesc,listOffset,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 		}
 		else
@@ -174,15 +174,15 @@ int cfs_workwith(cfs_info *info)
 			if(overflow_next != -1)
 			{
 				overflow_block = overflow_next;
-				listOffset = overflow_block*(info->(sB.blockSize));
+				listOffset = overflow_block*((info->sB).blockSize);
 	       			CALL(lseek(info->fileDesc,listOffset,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 				SAFE_WRITE(info->fileDesc,&overflow_next,0,sizeof(int),sizeof(int));
 			}
 			// If an empty block is needed
 			else
 			{
-				overflow_block = getEmptyBlock();
-				listOffset = overflow_block*(info->(sB.blockSize));
+				overflow_block = getEmptyBlock(info);
+				listOffset = overflow_block*((info->sB).blockSize);
 	            		CALL(lseek(info->fileDesc,listOffset,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 		            		overflow_next = -1;
 				SAFE_WRITE(info->fileDesc,&overflow_next,0,sizeof(int),sizeof(int));
@@ -200,46 +200,47 @@ int cfs_workwith(cfs_info *info)
 	return info->fileDesc;
 }
 
-int cfs_mkdir(int fd,char *dirname)
+int cfs_mkdir(cfs_info *info, char *dirname)
 {
 	int		ignore = 0;
 	int		new_nodeid;
 	int		parent_nodeid, i, offset;
 	char	parent_path[strlen(dirname)+1];
-	char		new_name[sB.filenameSize+1];
+	char		new_name[(info->sB).filenameSize+1];
 	bool		busy;
 	time_t		curr_time;
 	MDS		*parent_mds, *metadata;
 	Datastream	parent_data, data;
 
-	CALL(lseek(fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	CALL(lseek(info->fileDesc,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 		
 	// Initialize new_name
-	for(int i=0; i<=sB.filenameSize; i++)
+	for(int i=0; i<=(info->sB).filenameSize; i++)
 		new_name[i] = '\0';
 
 	// Get parent's nodeid and new directory's name
-	parent_nodeid = get_parent(fd,dirname,new_name);
+	parent_nodeid = get_parent(info,dirname,new_name);
 	if(parent_nodeid == -1)
 		return -1;
 	// Go to parent's metadata
-	parent_mds = (MDS*) (inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	parent_mds = (MDS*) (info->inodeTable + parent_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+	parent_mds->access_time = time(NULL);
 	// Check if parent is a directory
 	if(parent_mds->type != Directory)
 	{
-		printf("Input error, %s is not a directory.\n",inodeTable+parent_nodeid*inodeSize+sizeof(bool));
+		printf("Input error, %s is not a directory.\n",info->inodeTable+parent_nodeid*(info->inodeSize)+sizeof(bool));
 		return -1;
 	}
 
 	// Check if new directory exists
-	if(traverse_cfs(fd,new_name,parent_nodeid) != -1)
+	if(traverse_cfs(info,new_name,parent_nodeid) != -1)
 	{
 		printf("Input error, directory %s already exists.\n",dirname);
 		return -1;
 	}
 
 	// Go to parent's data
-	parent_data.datablocks = (int*)(inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
+	parent_data.datablocks = (int*)(info->inodeTable + parent_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
 
 	int	dataCounter, move, numofEntities;
 	if (strlen(dirname)-strlen(new_name) > 0) {
@@ -248,73 +249,73 @@ int cfs_mkdir(int fd,char *dirname)
 	} else {
 		strcpy(parent_path, "./");
 	}
-	numofEntities = getDirEntities(fd,parent_path,NULL);
+	numofEntities = getDirEntities(info,parent_path,NULL);
 
 	// Update parent directory's data
-	for(i=0; i<sB.maxFileDatablockNum; i++)
+	for(i=0; i<(info->sB).maxFileDatablockNum; i++)
 	{
 		// If current datablock is empty
 		if(parent_data.datablocks[i] == -1)
 		{
-			parent_data.datablocks[i] = getEmptyBlock();
+			parent_data.datablocks[i] = getEmptyBlock(info);
 			// Go to datablock
-			move = parent_data.datablocks[i]*sB.blockSize + sizeof(int);
-			CALL(lseek(fd,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			move = parent_data.datablocks[i]*(info->sB).blockSize + sizeof(int);
+			CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 			dataCounter = 0;
 			parent_mds->datablocksCounter++;
 		}
 		else
 		{
 			// Go to datablock
-			move = parent_data.datablocks[i]*sB.blockSize;
-			CALL(lseek(fd,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-			SAFE_READ(fd,&dataCounter,0,sizeof(int),sizeof(int));
+			move = parent_data.datablocks[i]*(info->sB).blockSize;
+			CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_READ(info->fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
 		}
 
 		// If parent directory has no datablocks available
-		if(parent_mds->datablocksCounter == sB.maxDirDatablockNum && numofEntities == sB.maxEntitiesPerBlock*sB.maxDirDatablockNum)
+		if(parent_mds->datablocksCounter == (info->sB).maxDirDatablockNum && numofEntities == (info->sB).maxEntitiesPerBlock*(info->sB).maxDirDatablockNum)
 		{
 			printf("Not enough space in parent directory to create subdirectory %s.\n",dirname);
 			return -1;
 		}
 	
 		// If there is space for another entity
-		if(dataCounter < sB.maxEntitiesPerBlock)
+		if(dataCounter < (info->sB).maxEntitiesPerBlock)
 		{
 			// Find an empty space in inodeTable
-			new_nodeid = getTableSpace();
+			new_nodeid = getTableSpace(info);
 
 			// Go after the last entity in the datablockrealloc
-			CALL(lseek(fd,dataCounter*(sB.filenameSize+sizeof(int)),SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
-			SAFE_WRITE(fd,new_name,0,sizeof(char),sB.filenameSize);
-			SAFE_WRITE(fd,&new_nodeid,0,sizeof(int),sizeof(int));
+			CALL(lseek(info->fileDesc,dataCounter*((info->sB).filenameSize+sizeof(int)),SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_WRITE(info->fileDesc,new_name,0,sizeof(char),(info->sB).filenameSize);
+			SAFE_WRITE(info->fileDesc,&new_nodeid,0,sizeof(int),sizeof(int));
 			// Increase datablock's counter
 			dataCounter++;
-			CALL(lseek(fd,(parent_data.datablocks[i])*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-			SAFE_WRITE(fd,&dataCounter,0,sizeof(int),sizeof(int));
+			CALL(lseek(info->fileDesc,(parent_data.datablocks[i])*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_WRITE(info->fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
 			// If this is the first entity in datablock
 			break;
 		}
 	}
 
-	parent_mds->size += sB.filenameSize + sizeof(int);
+	parent_mds->size += (info->sB).filenameSize + sizeof(int);
 
-	sB.nodeidCounter++;
-	sB.iTableCounter++;
+	(info->sB).nodeidCounter++;
+	(info->sB).iTableCounter++;
 	// Allocate space for another element in inodeTable
-	inodeTable = (char*)realloc(inodeTable,sB.iTableCounter*inodeSize);
-	offset = new_nodeid*inodeSize;
+	info->inodeTable = (char*)realloc(info->inodeTable,(info->sB).iTableCounter*(info->inodeSize));
+	offset = new_nodeid*(info->inodeSize);
 	// Fill empty space with new file
 	busy = true;
-	*(bool*) (inodeTable + offset) = busy;
+	*(bool*) (info->inodeTable + offset) = busy;
 
 	offset += sizeof(bool);
-	strcpy(inodeTable + offset,new_name);
+	strcpy(info->inodeTable + offset,new_name);
 
-	offset += sB.filenameSize;
-	metadata = (MDS*) (inodeTable + offset);
+	offset += (info->sB).filenameSize;
+	metadata = (MDS*) (info->inodeTable + offset);
 	metadata->nodeid = new_nodeid;
-	metadata->size = 2*(sB.filenameSize + sizeof(int));
+	metadata->size = 2*((info->sB).filenameSize + sizeof(int));
 	metadata->type = Directory;
 	metadata->parent_nodeid = parent_nodeid;
 	curr_time = time(NULL);
@@ -325,40 +326,41 @@ int cfs_mkdir(int fd,char *dirname)
 
 	// Create directory's data (one block for now)
 	offset += sizeof(MDS);
-	data.datablocks = (int*) (inodeTable + offset);
-	data.datablocks[0] = getEmptyBlock();
-	CALL(lseek(fd,data.datablocks[0]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	data.datablocks = (int*) (info->inodeTable + offset);
+	data.datablocks[0] = getEmptyBlock(info);
+	CALL(lseek(info->fileDesc,data.datablocks[0]*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 	// Write entities' counter for current datablock
 	int	entityCounter = 2;
-	SAFE_WRITE(fd,&entityCounter,0,sizeof(int),sizeof(int));
+	SAFE_WRITE(info->fileDesc,&entityCounter,0,sizeof(int),sizeof(int));
 	// Write entity (filename + nodeid) for relative path "."
-	CALL(write(fd,".",2),-1,"Error writing in cfs file: ",3,ignore);
+	CALL(write(info->fileDesc,".",2),-1,"Error writing in cfs file: ",3,ignore);
 	// Leave filenameSize space free
-	CALL(lseek(fd,sB.filenameSize-2,SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
-	SAFE_WRITE(fd,&(metadata->nodeid),0,sizeof(int),sizeof(int));
+	CALL(lseek(info->fileDesc,(info->sB).filenameSize-2,SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
+	SAFE_WRITE(info->fileDesc,&(metadata->nodeid),0,sizeof(int),sizeof(int));
 	// Write entity for relative path ".."
-	CALL(write(fd,"..",3),-1,"Error writing in cfs file: ",3,ignore);
+	CALL(write(info->fileDesc,"..",3),-1,"Error writing in cfs file: ",3,ignore);
 	// Leave filenameSize space free
-	CALL(lseek(fd,sB.filenameSize-3,SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
-	SAFE_WRITE(fd,&(metadata->parent_nodeid),0,sizeof(int),sizeof(int));
+	CALL(lseek(info->fileDesc,(info->sB).filenameSize-3,SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
+	SAFE_WRITE(info->fileDesc,&(metadata->parent_nodeid),0,sizeof(int),sizeof(int));
 	// Directory's rest datablocks will be empty for now
-	for(i=1; i<sB.maxFileDatablockNum; i++)
+	for(i=1; i<(info->sB).maxFileDatablockNum; i++)
 		data.datablocks[i] = -1;
 
+	parent_mds->modification_time = time(NULL);
 	return new_nodeid;
 }
 
-int cfs_touch(int fd,char *filename,touch_mode mode)
+int cfs_touch(cfs_info *info, char *filename,touch_mode mode)
 {
 	int	ignore = 0;
 
-	CALL(lseek(fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	CALL(lseek(info->fileDesc,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 
 	if(mode == CRE)
 	{
 		int		parent_nodeid, new_nodeid;
 		int		i, offset;
-		char		new_name[sB.filenameSize+1];
+		char		new_name[(info->sB).filenameSize+1];
 		char	parent_path[strlen(filename)+1];
 		bool		busy;
 		time_t		curr_time;
@@ -366,32 +368,33 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 		Datastream	parent_data, data;
 
 		// Initialize new_name
-		for(int i=0; i<=sB.filenameSize; i++)
+		for(int i=0; i<=(info->sB).filenameSize; i++)
 			new_name[i] = '\0';
 
 		// Get parent's nodeid and new file's name
-		parent_nodeid = get_parent(fd,filename,new_name);
+		parent_nodeid = get_parent(info,filename,new_name);
 		if(parent_nodeid == -1)
 			return -1;
 	
 		// Go to parent's metadata
-		parent_mds = (MDS*) (inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+		parent_mds = (MDS*) (info->inodeTable + parent_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+		parent_mds->access_time = time(NULL);
 		// Check if parent is a directory
 		if(parent_mds->type != Directory)
 		{
-			printf("Input error, %s is not a directory.\n",inodeTable+parent_nodeid*inodeSize+sizeof(bool));
+			printf("Input error, %s is not a directory.\n",info->inodeTable+parent_nodeid*(info->inodeSize)+sizeof(bool));
 			return -1;
 		}
 
 		// Check if file exists
-		if(traverse_cfs(fd,new_name,parent_nodeid) != -1)
+		if(traverse_cfs(info,new_name,parent_nodeid) != -1)
 		{
 			printf("Input error, file %s already exists.\n",filename);
 			return -1;
 		}
 
 		// Go to parent's data
-		parent_data.datablocks = (int*)(inodeTable + parent_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
+		parent_data.datablocks = (int*)(info->inodeTable + parent_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
 
 		int	dataCounter, move, numofEntities;
 		if (strlen(filename)-strlen(new_name) > 0) {
@@ -400,70 +403,70 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 		} else {
 			strcpy(parent_path, "./");
 		}
-		numofEntities = getDirEntities(fd,parent_path,NULL);
+		numofEntities = getDirEntities(info,parent_path,NULL);
 
 		// Update parent directory's data
-		for(i=0; i<sB.maxFileDatablockNum; i++)
+		for(i=0; i<(info->sB).maxFileDatablockNum; i++)
 		{
 			// If current datablock is empty
 			if(parent_data.datablocks[i] == -1)
 			{
-				parent_data.datablocks[i] = getEmptyBlock();
+				parent_data.datablocks[i] = getEmptyBlock(info);
 				// Go to datablock
-				move = parent_data.datablocks[i]*sB.blockSize + sizeof(int);
-				CALL(lseek(fd,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				move = parent_data.datablocks[i]*(info->sB).blockSize + sizeof(int);
+				CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 				dataCounter = 0;
 				parent_mds->datablocksCounter++;
 			}
 			else
 			{
 				// Go to datablock
-				move = parent_data.datablocks[i]*sB.blockSize;
-				CALL(lseek(fd,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-				SAFE_READ(fd,&dataCounter,0,sizeof(int),sizeof(int));
+				move = parent_data.datablocks[i]*(info->sB).blockSize;
+				CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				SAFE_READ(info->fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
 			}
 
 			// If parent directory has no datablocks available
-			if(parent_mds->datablocksCounter == sB.maxDirDatablockNum && numofEntities == sB.maxEntitiesPerBlock*sB.maxDirDatablockNum)
+			if(parent_mds->datablocksCounter == (info->sB).maxDirDatablockNum && numofEntities == (info->sB).maxEntitiesPerBlock*(info->sB).maxDirDatablockNum)
 			{
 				printf("Not enough space in parent directory to create file %s.\n",filename);
 				return -1;
 			}
 	
 			// If there is space for another entity
-			if(dataCounter < sB.maxEntitiesPerBlock)
+			if(dataCounter < (info->sB).maxEntitiesPerBlock)
 			{
 				// Find an empty space in inodeTable
-				new_nodeid = getTableSpace();
+				new_nodeid = getTableSpace(info);
 
 				// Go after the last entity in the datablockrealloc
-				CALL(lseek(fd,dataCounter*(sB.filenameSize+sizeof(int)),SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
-				SAFE_WRITE(fd,new_name,0,sizeof(char),sB.filenameSize);
-				SAFE_WRITE(fd,&new_nodeid,0,sizeof(int),sizeof(int));
+				CALL(lseek(info->fileDesc,dataCounter*((info->sB).filenameSize+sizeof(int)),SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
+				SAFE_WRITE(info->fileDesc,new_name,0,sizeof(char),(info->sB).filenameSize);
+				SAFE_WRITE(info->fileDesc,&new_nodeid,0,sizeof(int),sizeof(int));
 				// Increase datablock's counter
 				dataCounter++;
-				CALL(lseek(fd,(parent_data.datablocks[i])*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-				SAFE_WRITE(fd,&dataCounter,0,sizeof(int),sizeof(int));
+				CALL(lseek(info->fileDesc,(parent_data.datablocks[i])*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				SAFE_WRITE(info->fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
 				break;
 			}
 		}
 
-		parent_mds->size += sB.filenameSize + sizeof(int);
+		parent_mds->size += (info->sB).filenameSize + sizeof(int);
 
-		sB.nodeidCounter++;
-		sB.iTableCounter++;
+		(info->sB).nodeidCounter++;
+		(info->sB).iTableCounter++;
 		// Allocate space for another element in inodeTable
-		inodeTable = (char*)realloc(inodeTable,sB.iTableCounter*inodeSize);
-		offset = new_nodeid*inodeSize;
+		info->inodeTable = (char*)realloc(info->inodeTable,(info->sB).iTableCounter*(info->inodeSize));
+		offset = new_nodeid*(info->inodeSize);
 		// Fill empty space with new file
 		busy = true;
-		*(bool*) (inodeTable + offset) = busy;
+		*(bool*) (info->inodeTable + offset) = busy;
 
 		offset += sizeof(bool);
-		strcpy(inodeTable + offset,new_name);
+		strcpy(info->inodeTable + offset,new_name);
 
-		offset += sB.filenameSize;
-		metadata = (MDS*) (inodeTable + offset);
+		offset += (info->sB).filenameSize;
+		metadata = (MDS*) (info->inodeTable + offset);
 		metadata->nodeid = new_nodeid;
 		metadata->size = 0;
 		metadata->type = File;
@@ -475,16 +478,17 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 		metadata->datablocksCounter = 0;
 
 		offset += sizeof(MDS);
-		data.datablocks = (int*) (inodeTable + offset);
-		for(i=0; i<sB.maxFileDatablockNum; i++)
+		data.datablocks = (int*) (info->inodeTable + offset);
+		for(i=0; i<(info->sB).maxFileDatablockNum; i++)
 			data.datablocks[i] = -1;
 
+		parent_mds->modification_time = time(NULL);
 		return new_nodeid;
 	}
 	else
 	{
 		int	start, nodeid;
-		char	temp[sB.filenameSize];
+		char	temp[(info->sB).filenameSize];
 		time_t	curr_time;
 		MDS	*current_mds, *metadata;
 
@@ -495,7 +499,7 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 		else
 		{
 			char	*split;
-			char	strtk_filename[sB.filenameSize];
+			char	strtk_filename[(info->sB).filenameSize];
 			// Will be used in strtok (changes initial string)
 			strcpy(strtk_filename,filename);
 
@@ -504,13 +508,14 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 			// If path starts from current directory's parent
 			if(!strcmp(split,".."))
 			{
-				current_mds = (MDS*)(inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+				current_mds = (MDS*)(info->inodeTable + (info->cfs_current_nodeid)*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+				current_mds->access_time = time(NULL);
 				start = current_mds->parent_nodeid;
 			}
 			else//if(!strcmp(split,".") || strcmp(split,"/"))
 			{
 				// If path starts from current directory
-				start = cfs_current_nodeid;
+				start = info->cfs_current_nodeid;
 				if(strcmp(split,".") && strcmp(split,"/"))
 				{
 					strcpy(temp,"./");
@@ -520,7 +525,7 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 			}
 		}
 
-		nodeid = traverse_cfs(fd,filename,start);
+		nodeid = traverse_cfs(info,filename,start);
 		if(nodeid == -1)
 		{
 			printf("Path %s could not be found in cfs.\n",filename);
@@ -528,7 +533,7 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 		}
 		else
 		{
-			metadata = (MDS*) (inodeTable + nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+			metadata = (MDS*) (info->inodeTable + nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
 			curr_time = time(NULL);
 			if(mode == ACC)
 				metadata->access_time = curr_time;
@@ -541,11 +546,11 @@ int cfs_touch(int fd,char *filename,touch_mode mode)
 	}
 }
 
-int cfs_ln(int fileDesc,char* source_path,char* destination)
+int cfs_ln(cfs_info *info, char* source_path,char* destination)
 {
 	int 	 ignore;
 
-	char 	source_name[sB.filenameSize];
+	char 	source_name[(info->sB).filenameSize];
 	int 	 source_nodeid;
 	MDS		*source_mds;
 
@@ -553,36 +558,37 @@ int cfs_ln(int fileDesc,char* source_path,char* destination)
 	MDS		*directory_mds;
 	int		*directory_data;
 
-	char	 destination_path[strlen(destination) + sB.filenameSize + 2];
-	char	 destination_name[sB.filenameSize];
+	char	 destination_path[strlen(destination) + (info->sB).filenameSize + 2];
+	char	 destination_name[(info->sB).filenameSize];
 	int		 destination_nodeid;
 	MDS		*destination_mds;
 
 	// Check if source exists.
-	get_parent(fileDesc, source_path, source_name);
-	source_nodeid = traverse_cfs(fileDesc, source_path, getPathStartId(source_path));
+	get_parent(info, source_path, source_name);
+	source_nodeid = traverse_cfs(info, source_path, getPathStartId(info, source_path));
 	if (source_nodeid == -1) {
 		printf("ln: cannot stat '%s': No such file or directory\n",source_path);
 		return -1;
 	}
 	// Check if source is file.
-	// source_name = inodeTable + source_nodeid*inodeSize + sizeof(bool);
-	source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	source_mds = (MDS*) (info->inodeTable + source_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+	source_mds->access_time = time(NULL);
 	if (source_mds->type == Directory) {
 		printf("ln: cannot create link to directory\n");
 		return -1;
 	}
 	// Check if destination exists.
-	directory_nodeid = get_parent(fileDesc, destination, destination_name);
+	directory_nodeid = get_parent(info, destination, destination_name);
 	if (directory_nodeid == -1) {
 		printf("ln: cannot create directory '%s': No such file or directory\n", destination);
 		return -1;
 	}
 
-	destination_nodeid = traverse_cfs(fileDesc,destination_name,directory_nodeid);
+	destination_nodeid = traverse_cfs(info,destination_name,directory_nodeid);
 	strcpy(destination_path, destination);
 	if (destination_nodeid != -1) {
-		destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+		destination_mds = (MDS*) (info->inodeTable + destination_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+		destination_mds->access_time = time(NULL);
 		if (destination_mds->type == Directory) {
 			strcpy(destination_name, source_name);
 			directory_nodeid = destination_nodeid;
@@ -593,78 +599,74 @@ int cfs_ln(int fileDesc,char* source_path,char* destination)
 			return -1;
 		}
 	}
-	directory_mds = (MDS*) (inodeTable + directory_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	directory_mds = (MDS*) (info->inodeTable + directory_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+	directory_mds->access_time = time(NULL);
 	// Go to directory's data.
-	directory_data = (int*)(inodeTable + directory_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
+	directory_data = (int*)(info->inodeTable + directory_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
 	int	dataCounter, move, numofEntities = 0;
 
 	// Update directory's data.
-	for(int i=0; i<sB.maxFileDatablockNum; i++)
+	for(int i=0; i<(info->sB).maxFileDatablockNum; i++)
 	{
 		// Check if current datablock is empty.
 		if(directory_data[i] == -1)
 		{
-			directory_data[i] = getEmptyBlock();
+			directory_data[i] = getEmptyBlock(info);
 			// Go to datablock
-			move = directory_data[i]*sB.blockSize + sizeof(int);
-			CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			move = directory_data[i]*(info->sB).blockSize + sizeof(int);
+			CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 			dataCounter = 0;
 			directory_mds->datablocksCounter++;
 		}
 		else
 		{
 			// Go to datablock
-			move = directory_data[i]*sB.blockSize;
-			CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-			SAFE_READ(fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
+			move = directory_data[i]*(info->sB).blockSize;
+			CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_READ(info->fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
 			numofEntities += dataCounter;
 		}
 		// If directory has no datablocks available
-		if(directory_mds->datablocksCounter == sB.maxDirDatablockNum && numofEntities == sB.maxEntitiesPerBlock*sB.maxDirDatablockNum)
+		if(directory_mds->datablocksCounter == (info->sB).maxDirDatablockNum && numofEntities == (info->sB).maxEntitiesPerBlock*(info->sB).maxDirDatablockNum)
 		{
 			printf("ln: not enough space in directory to create link '%s' to '%s'.\n",source_name, destination_path);
 			return -1;
 		}
 		// If there is space for another entity
-		if(dataCounter < sB.maxEntitiesPerBlock)
+		if(dataCounter < (info->sB).maxEntitiesPerBlock)
 		{
 			source_mds->linkCounter++;
 
 			// Go after the last entity in the datablock
-			CALL(lseek(fileDesc,dataCounter*(sB.filenameSize+sizeof(int)),SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
-			SAFE_WRITE(fileDesc,destination_name,0,sizeof(char),sB.filenameSize);
-			SAFE_WRITE(fileDesc,&source_nodeid,0,sizeof(int),sizeof(int));
+			CALL(lseek(info->fileDesc,dataCounter*((info->sB).filenameSize+sizeof(int)),SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_WRITE(info->fileDesc,destination_name,0,sizeof(char),(info->sB).filenameSize);
+			SAFE_WRITE(info->fileDesc,&source_nodeid,0,sizeof(int),sizeof(int));
 			// Increase datablock's counter
 			dataCounter++;
-			CALL(lseek(fileDesc,(directory_data[i])*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-			SAFE_WRITE(fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
+			CALL(lseek(info->fileDesc,(directory_data[i])*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_WRITE(info->fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
 			break;
 		}
 	}
 
-	directory_mds->size += sB.filenameSize + sizeof(int);
+	directory_mds->size += (info->sB).filenameSize + sizeof(int);
+	directory_mds->modification_time = time(NULL);
 	return source_nodeid;
 }
 
-bool cfs_pwd() 
+bool cfs_pwd(cfs_info *info) 
 {
 	// Takes the current nodeid from global variable cfs_current_nodeid,
-	MDS 			*curr_dir_MDS = (MDS *) (inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-	int 	 		 curr_dir_id = cfs_current_nodeid;
+	int 	 		 curr_dir_id = info->cfs_current_nodeid;
+	MDS 			*curr_dir_MDS = (MDS *) (info->inodeTable + (info->cfs_current_nodeid)*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+
 	// Traverse the nodes until the root. For each one save its id in a list path_nodeIds,
 	List 			*path_nodeIds = NULL;
 	while (curr_dir_id != 0) {
 		addNode(&path_nodeIds, curr_dir_id);
 		curr_dir_id = curr_dir_MDS->parent_nodeid;
-		curr_dir_MDS = (MDS *) (inodeTable + curr_dir_id*inodeSize + sizeof(bool));
+		curr_dir_MDS = (MDS *) (info->inodeTable + curr_dir_id*(info->inodeSize) + sizeof(bool));
 	}
-	// addNode(path_nodeIds, curr_dir_id);
-
-	// For debuging only,
-	// printf("<");
-	// printList(path_nodeIds);
-	// printf(">");
-
 	// Now the list path_nodeIds has the nodeids of each dir on the path to current dir, from start to end.
 	// So we pop each one and print its name,
 	char 	*fileName = NULL;
@@ -676,77 +678,50 @@ bool cfs_pwd()
 		// We are not at the root,
 		while (path_nodeIds != NULL) {
 			curr_dir_id = pop(&path_nodeIds);
-			curr_dir_MDS = (MDS *) (inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-			fileName = (inodeTable + curr_dir_id*inodeSize + sizeof(bool));;
+			curr_dir_MDS = (MDS *) (info->inodeTable + (info->cfs_current_nodeid)*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+			fileName = (info->inodeTable + curr_dir_id*(info->inodeSize) + sizeof(bool));;
 			printf("/%s", fileName);
 		}
 	}
 	return true;
 }
 
-bool cfs_cd(int fileDesc, char *path) 
+bool cfs_cd(cfs_info *info, char *path) 
 {
+	/*
+	  cfs_cd: Changes the cfs_current_nodeid.
+	*/
 	int 	 path_nodeId = -1;
 	MDS 	*path_MDS = NULL;
-	int		 start;
 
 	// Check if the path has value in it.
-	if (path != NULL) {
-		char	initial_path[strlen(path)+1];
-
-		// If path starts with "/"
-		if(path[0] == '/')
-		{
-			// Traversing cfs will start from the root (nodeid = 0)
-			path_nodeId = 0;
-		}
-		else
-		{
-			// Get first entity in path
-			strcpy(initial_path,path);
-			char *start_dir = strtok(initial_path,"/");
-			// If path starts from current directory's parent
-			if(strcmp(start_dir,"..") == 0)
-			{
-				path_MDS = (MDS *) (inodeTable + cfs_current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-				start = path_MDS->parent_nodeid;
-			}
-			else	//if(!strcmp(split,".") || strcmp(split,"/"))
-			{
-				// If path starts from current directory
-				start = cfs_current_nodeid;
-			}
-
-		}
-		path_nodeId = traverse_cfs(fileDesc, path, start);
-		if(path_nodeId == -1)
-		{
-			printf("Path %s could not be found in cfs.\n",path);
-			return false;
-		}
-	} else {
-		cfs_current_nodeid = 0;
+	if (path == NULL || strcmp(path, "/") == 0) {
+		// If was not given a path, then find then set current nodeid as the root id (cd to root).
+		info->cfs_current_nodeid = 0;
 		return true;
 	}
+	// Find the nodeid of the path.
+	path_nodeId = traverse_cfs(info, path, getPathStartId(info, path));
 	// Check if the path has valid value.
 	if(path_nodeId == -1) {
-		printf("Path is not valid.\n");
+		printf("cd: %s: No such file or directory.\n", path);
 		return false;
 	} else {
-		path_MDS = (MDS *) (inodeTable + path_nodeId*inodeSize + sizeof(bool) + sB.filenameSize);
+		path_MDS = (MDS *) (info->inodeTable + path_nodeId*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+		path_MDS->access_time = time(NULL);
 	}
 	// Check if the last entity is directory.
 	if (path_MDS->type != Directory) {
-		printf("Input error, '%s' is not a valid path.\n",path);
+		printf("cd: %s: Not a directory.\n", path);
 		return false;
 	} else {
-		cfs_current_nodeid = path_nodeId;
+		info->cfs_current_nodeid = path_nodeId;
 	}
 
 	return true;
 }
 
-bool cfs_ls(int fileDesc, bool *ls_modes, char *path) 
+bool cfs_ls(cfs_info *info, bool *ls_modes, char *path) 
 {
 	int 	 		 ignore;
 	int 	 		 path_nodeId = -1;
@@ -758,44 +733,20 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path)
 	char 			*current_filename;
 	MDS 			*current_MDS;
 	char			*dirName = NULL;
-	int		 		 start;
 
-	// Search the nodeid of the path,
+	// Check if the path has value in it.
 	if (path == NULL) {
-		path_nodeId = cfs_current_nodeid;
-		path_MDS = (MDS *) (inodeTable + path_nodeId*inodeSize + sizeof(bool) + sB.filenameSize);
+		// If was not given a path, then set path nodeid as the root id (ls to root).
+		path_nodeId = info->cfs_current_nodeid;
+		path_MDS = (MDS *) (info->inodeTable + path_nodeId*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+		path_MDS->access_time = time(NULL);
 	} else {
-		char	initial_path[strlen(path)+1];
-
-		// If path starts with "/"
-		if(path[0] == '/')
-		{
-			// Traversing cfs will start from the root (nodeid = 0)
-			start = 0;
-		}
-		else
-		{
-			// Get first entity in path
-			strcpy(initial_path,path);
-			char *start_dir = strtok(initial_path,"/");
-			path_nodeId = cfs_current_nodeid;
-			// If path starts from current directory's parent
-			if(strcmp(start_dir,"..") == 0)
-			{
-				path_MDS = (MDS *) (inodeTable + path_nodeId*inodeSize + sizeof(bool) + sB.filenameSize);
-				start = path_MDS->parent_nodeid;
-			}
-			else	//if(!strcmp(split,".") || strcmp(split,"/"))
-			{
-				// If path starts from current directory
-				start = cfs_current_nodeid;
-			}
-		}
-		path_nodeId = traverse_cfs(fileDesc, path, start);
+		path_nodeId = traverse_cfs(info, path, getPathStartId(info, path));
 
 		// Check if the path has valid value.
 		if(path_nodeId != -1) {
-			path_MDS = (MDS *) (inodeTable + path_nodeId*inodeSize + sizeof(bool) + sB.filenameSize);
+			path_MDS = (MDS *) (info->inodeTable + path_nodeId*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+			path_MDS->access_time = time(NULL);
 		} else {
 			printf("ls: cannot access '%s': No such file or directory.\n",path);
 			return false;
@@ -805,26 +756,26 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path)
 			printf("ls: target '%s' is not a directory.\n",path);
 			return false;
 		}
-
 	}
 
-	// Get the list with the nodeids of the path's content,
-	path_data = (int *) (inodeTable + path_nodeId*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
+	// Get the list with the nodeids of the path's content.
+	path_data = (int *) (info->inodeTable + path_nodeId*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
 	int dataStreamIndex=0;
 	int pairCounter;
-	current_filename = (char*) malloc(sB.filenameSize);
+	current_filename = (char*) malloc((info->sB).filenameSize);
 	for (int i=0; i < path_MDS->datablocksCounter; i++) {
-		// Ignore the cells of the table which have -1 var
+		// Ignore the cells of the table with -1 value.
 		while (path_data[dataStreamIndex] == -1) {
 			dataStreamIndex++;
 		}
-		CALL(lseek(fileDesc,path_data[dataStreamIndex]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-		SAFE_READ(fileDesc,&pairCounter,0,sizeof(int),sizeof(int));
+		CALL(lseek(info->fileDesc,path_data[dataStreamIndex]*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		SAFE_READ(info->fileDesc,&pairCounter,0,sizeof(int),sizeof(int));
 		for (int j=0; j < pairCounter; j++) {
-			CALL(lseek(fileDesc,path_data[dataStreamIndex]*sB.blockSize + sizeof(int) + j*(sB.filenameSize+sizeof(int)),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-			SAFE_READ(fileDesc,current_filename,0,sizeof(char),sB.filenameSize);
-			SAFE_READ(fileDesc,&current_nodeid,0,sizeof(int),sizeof(int));
-			current_MDS = (MDS *) (inodeTable + current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+			CALL(lseek(info->fileDesc,path_data[dataStreamIndex]*(info->sB).blockSize + sizeof(int) + j*((info->sB).filenameSize+sizeof(int)),SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_READ(info->fileDesc,current_filename,0,sizeof(char),(info->sB).filenameSize);
+			SAFE_READ(info->fileDesc,&current_nodeid,0,sizeof(int),sizeof(int));
+			current_MDS = (MDS *) (info->inodeTable + current_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+			current_MDS->access_time = time(NULL);
 			if(strcmp(current_filename,".") && strcmp(current_filename,"..") && current_MDS->type == Directory)
 				addNode(&path_content, current_nodeid);
 			if ((ls_modes[LS_D] == true && current_MDS->type == Directory) || (ls_modes[LS_H] == true && current_MDS->type == File && current_MDS->linkCounter > 1) || (ls_modes[LS_D] == false && ls_modes[LS_H] == false))
@@ -833,7 +784,8 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path)
 		dataStreamIndex++;
 	}
 	free(current_filename);
-	// Print them, with the right option,
+	// Print them, with the right option.
+	// If -r was given then at the first line prints the path of the directory.
 	if (ls_modes[LS_R] == true) {
 		if(path == NULL) {
 			dirName = malloc(2);
@@ -844,16 +796,17 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path)
 		}
 		printf("%s:\n", dirName);
 	}
+	// Prints the content of the directory.
 	while (path_content_names != NULL) {
 		if (ls_modes[LS_U] == true) {
 			current_filename = pop_last_string(&path_content_names);
-			// current_filename = pop_string(&path_content_names);
 		} else {
 			current_filename = pop_minimum_string(&path_content_names);
 		}
 		if ((ls_modes[LS_A] == false && current_filename[0] != '.') || ls_modes[LS_A] == true) {
-			current_nodeid = traverse_cfs(fileDesc, current_filename, path_nodeId);
-			current_MDS = (MDS *) (inodeTable + current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+			current_nodeid = traverse_cfs(info, current_filename, path_nodeId);
+			current_MDS = (MDS *) (info->inodeTable + current_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+			current_MDS->access_time = time(NULL);
 			if (ls_modes[LS_L] == true) {
 				char *creationTime = ctime(&current_MDS->creation_time);
 				char *accessTime = ctime(&current_MDS->access_time);
@@ -874,6 +827,7 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path)
 		}
 		free(current_filename);
 	}
+	// If -r was given, when it print the content of the directory starts to call recursivly the ls for the subirectories with the same modes.
 	if (ls_modes[LS_R] == true) {
 		char *temp = (char*) malloc(strlen(dirName)+1);
 		int tempSize = strlen(temp);
@@ -881,18 +835,17 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path)
 		while (path_content != NULL) {
 			strcpy(temp, dirName);
 			current_nodeid = pop_last_Node(&path_content);
-			current_filename = inodeTable + current_nodeid*inodeSize + sizeof(bool);
-			current_MDS = (MDS *) (inodeTable + current_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-			// if (current_MDS->type == Directory && current_MDS->nodeid != path_nodeId && current_MDS->nodeid != path_MDS->parent_nodeid) {
-				dirPathSize = strlen(temp) + strlen(current_filename) + 2;
-				if (tempSize < dirPathSize)
-					temp = realloc(temp, dirPathSize);
-				strcat(temp, "/");
-				strcat(temp, current_filename);
-				
-				printf("\n");
-				cfs_ls(fileDesc, ls_modes, temp);
-			// }
+			current_filename = info->inodeTable + current_nodeid*(info->inodeSize) + sizeof(bool);
+			current_MDS = (MDS *) (info->inodeTable + current_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+			current_MDS->access_time = time(NULL);
+			dirPathSize = strlen(temp) + strlen(current_filename) + 2;
+			if (tempSize < dirPathSize)
+				temp = realloc(temp, dirPathSize);
+			strcat(temp, "/");
+			strcat(temp, current_filename);
+			
+			printf("\n");
+			cfs_ls(info, ls_modes, temp);
 		}
 		free(temp);
 	}
@@ -900,28 +853,29 @@ bool cfs_ls(int fileDesc, bool *ls_modes, char *path)
 	return true;
 }
 
-bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destination)
+bool cfs_cp(cfs_info *info, bool *cp_modes, string_List *sourceList, char *destination)
 {
+	time_t			 current_time;
 	int 		 sourcesCount = getLength(sourceList);
 	char		 line[100];
 	char		*answer;
 	string_List *directory_inodeList;
 
 	char 		*source_path;
-	char 		 source_name[sB.filenameSize];
+	char 		 source_name[(info->sB).filenameSize];
 	int 		 source_nodeid;
 	MDS 		*source_mds;
 
 	int 		 directory_nodeid;
 
-	char		 destination_path[strlen(destination) + sB.filenameSize + 2];
-	char 		 destination_name[sB.filenameSize];
+	char		 destination_path[strlen(destination) + (info->sB).filenameSize + 2];
+	char 		 destination_name[(info->sB).filenameSize];
 	int			 destination_nodeid;
 	MDS 		*destination_mds;
 
 	//------------------------------------------------------------------------------------
 	// Get destination's directory inode
-	directory_nodeid = get_parent(fileDesc, destination, destination_name);
+	directory_nodeid = get_parent(info, destination, destination_name);
 	if (directory_nodeid == -1) {
 		printf("cp: cannot create directory '%s': No such file or directory\n", destination);
 		return false;
@@ -931,16 +885,16 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 	while (sourceList != NULL) {
 		source_path = pop_last_string(&sourceList);
 		// Get source inode.
-		get_parent(fileDesc, source_path, source_name);
-		source_nodeid = traverse_cfs(fileDesc, source_path, getPathStartId(source_path));
+		get_parent(info, source_path, source_name);
+		source_nodeid = traverse_cfs(info, source_path, getPathStartId(info, source_path));
 		// Check if source_path has valid value.
 		if(source_nodeid == -1) {
 			printf("cp: cannot stat '%s': No such file or directory\n",source_path);
 			free(source_path);
 			continue;
 		}
-		// source_name = inodeTable + source_nodeid*inodeSize + sizeof(bool);
-		source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+		source_mds = (MDS*) (info->inodeTable + source_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+		source_mds->access_time = time(NULL);
 		if (source_mds->type == Directory && cp_modes[CP_R] == false && cp_modes[CP_RR] == false) {
 			printf("cp: -r not specified; omitting directory '%s'\n", source_path);
 			free(source_path);
@@ -948,7 +902,7 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 		}
 		//--------------------------------------------------------------------------------
 		// Get destination inode.
-		destination_nodeid = traverse_cfs(fileDesc,destination_name,directory_nodeid);
+		destination_nodeid = traverse_cfs(info,destination_name,directory_nodeid);
 		strcpy(destination_path, destination);
 		if (destination_nodeid == -1) {
 			if (sourcesCount != 1) {
@@ -956,43 +910,45 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 				free(source_path);
 			} else if (source_mds->type == Directory) {
 				if (cp_modes[CP_RR] == true) {
-					cfs_mkdir(fileDesc, destination_path);
+					cfs_mkdir(info, destination_path);
 				} else {	// (cp_modes[CP_R] == true)
 					directory_inodeList = NULL;
-					getDirEntities(fileDesc, source_path, &directory_inodeList);
-					cfs_mkdir(fileDesc, destination_path);
-					cfs_cp(fileDesc, cp_modes, directory_inodeList, destination_path);
+					getDirEntities(info, source_path, &directory_inodeList);
+					cfs_mkdir(info, destination_path);
+					cfs_cp(info, cp_modes, directory_inodeList, destination_path);
 				}
 			} else {
-				cfs_touch(fileDesc, destination_path, CRE);
-				destination_nodeid = traverse_cfs(fileDesc, destination_path, getPathStartId(destination_path));
-				replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+				cfs_touch(info, destination_path, CRE);
+				destination_nodeid = traverse_cfs(info, destination_path, getPathStartId(info, destination_path));
+				replaceEntity(info, source_nodeid, destination_nodeid);
 			}
 		} else {	// destination_nodeid != -1
 			// If the file exists check the its type.
-			destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+			destination_mds = (MDS*) (info->inodeTable + destination_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+			destination_mds->access_time = time(NULL);
 			if (destination_mds->type == Directory) {
 				strcat(destination_path, "/");
 				strcat(destination_path, source_name);
-				destination_nodeid = traverse_cfs(fileDesc,source_name,destination_nodeid);
+				destination_nodeid = traverse_cfs(info,source_name,destination_nodeid);
 				if (destination_nodeid == -1) {
 					if (source_mds->type == Directory) {
 						if (cp_modes[CP_RR] == true) {
-							cfs_mkdir(fileDesc, destination_path);
+							cfs_mkdir(info, destination_path);
 						} else {	// (cp_modes[CP_R] == true)
 							directory_inodeList = NULL;
-							getDirEntities(fileDesc, source_path, &directory_inodeList);
-							cfs_mkdir(fileDesc, destination_path);
-							cfs_cp(fileDesc, cp_modes, directory_inodeList, destination_path);
+							getDirEntities(info, source_path, &directory_inodeList);
+							cfs_mkdir(info, destination_path);
+							cfs_cp(info, cp_modes, directory_inodeList, destination_path);
 						}
 					} else {
-						cfs_touch(fileDesc, destination_path, CRE);
-						destination_nodeid = traverse_cfs(fileDesc, destination_path, getPathStartId(destination_path));
-						replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+						cfs_touch(info, destination_path, CRE);
+						destination_nodeid = traverse_cfs(info, destination_path, getPathStartId(info, destination_path));
+						replaceEntity(info, source_nodeid, destination_nodeid);
 					}
 				} else {	// destination_nodeid != -1.
 					// If destination/source_name exists check if the type of source and destination are matching.
-					destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+					destination_mds = (MDS*) (info->inodeTable + destination_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+					destination_mds->access_time = time(NULL);
 					if (source_mds->type == Directory && destination_mds->type == Directory) {
 						if (cp_modes[CP_I] == true) {
 							printf("cp: You want to overwrite '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
@@ -1007,8 +963,8 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 							}
 						}
 						directory_inodeList = NULL;
-						getDirEntities(fileDesc, source_path, &directory_inodeList);
-						cfs_cp(fileDesc, cp_modes, directory_inodeList, destination_path);
+						getDirEntities(info, source_path, &directory_inodeList);
+						cfs_cp(info, cp_modes, directory_inodeList, destination_path);
 					} else if (source_mds->type == File && destination_mds->type == File) {
 						if (cp_modes[CP_I] == true) {
 							printf("cp: You want to overwrite '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
@@ -1022,8 +978,11 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 								continue;
 							}
 						}
-						cfs_touch(fileDesc, destination_path, MOD);
-						replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+						current_time = time(NULL);
+						destination_mds->creation_time = current_time;
+						destination_mds->access_time = current_time;
+						destination_mds->modification_time = current_time;
+						replaceEntity(info, source_nodeid, destination_nodeid);
 						destination_mds->linkCounter = 1;
 					} else if (source_mds->type != Directory && destination_mds->type == Directory) {
 						printf("cp: cannot overwrite directory '%s' with non-directory '%s'\n", destination_path, source_path);
@@ -1050,8 +1009,11 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 							continue;
 						}
 					}
-					cfs_touch(fileDesc, destination_path, MOD);
-					replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+					current_time = time(NULL);
+					destination_mds->creation_time = current_time;
+					destination_mds->access_time = current_time;
+					destination_mds->modification_time = current_time;
+					replaceEntity(info, source_nodeid, destination_nodeid);
 					destination_mds->linkCounter = 1;
 				}
 			}
@@ -1061,8 +1023,9 @@ bool cfs_cp(int fileDesc, bool *cp_modes, string_List *sourceList, char *destina
 	return true;
 }
 
-bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destination)
+bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *destination)
 {
+	time_t		 current_time;
 	int 		 sourcesCount = getLength(sourceList);
 	char		 line[100];
 	char		*answer;
@@ -1070,14 +1033,14 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 	bool		rm_modes[rm_mode_Num];
 
 	char 		*source_path;
-	char 		 source_name[sB.filenameSize];
+	char 		 source_name[(info->sB).filenameSize];
 	int 		 source_nodeid;
 	MDS 		*source_mds;
 
 	int 		 directory_nodeid;
 
-	char		 destination_path[strlen(destination) + sB.filenameSize + 2];
-	char 		 destination_name[sB.filenameSize];
+	char		 destination_path[strlen(destination) + (info->sB).filenameSize + 2];
+	char 		 destination_name[(info->sB).filenameSize];
 	int			 destination_nodeid;
 	MDS 		*destination_mds;
 
@@ -1085,29 +1048,29 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 		rm_modes[i] = false;
 	//------------------------------------------------------------------------------------
 	// Get destination's directory inode
-	directory_nodeid = get_parent(fileDesc, destination, destination_name);
+	directory_nodeid = get_parent(info, destination, destination_name);
 	if (directory_nodeid == -1) {
 		printf("mv: cannot create directory '%s': No such file or directory\n", destination);
 		return false;
 	}
 	//------------------------------------------------------------------------------------
-	// Copy each source to destination.
+	// Move each source to destination.
 	while (sourceList != NULL) {
 		source_path = pop_last_string(&sourceList);
 		// Get source inode.
-		get_parent(fileDesc, source_path, source_name);
-		source_nodeid = traverse_cfs(fileDesc, source_path, getPathStartId(source_path));
+		get_parent(info, source_path, source_name);
+		source_nodeid = traverse_cfs(info, source_path, getPathStartId(info, source_path));
 		// Check if source_path has valid value.
 		if(source_nodeid == -1) {
 			printf("mv: cannot stat '%s': No such file or directory\n",source_path);
 			free(source_path);
 			continue;
 		}
-		// source_name = inodeTable + source_nodeid*inodeSize + sizeof(bool);
-		source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+		source_mds = (MDS*) (info->inodeTable + source_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+		source_mds->access_time = time(NULL);
 		//--------------------------------------------------------------------------------
 		// Get destination inode.
-		destination_nodeid = traverse_cfs(fileDesc,destination_name,directory_nodeid);
+		destination_nodeid = traverse_cfs(info,destination_name,directory_nodeid);
 		strcpy(destination_path, destination);
 		if (destination_nodeid == -1) {
 			// If the destination does not exists, it has to be imported only one source.
@@ -1116,37 +1079,39 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 				printf("mv: target '%s' is not a directory\n", destination);
 			} else if (source_mds->type == Directory){
 				directory_inodeList = NULL;
-				getDirEntities(fileDesc, source_path, &directory_inodeList);
-				cfs_mkdir(fileDesc, destination_path);
-				cfs_mv(fileDesc, mv_modes, directory_inodeList, destination_path);
+				getDirEntities(info, source_path, &directory_inodeList);
+				cfs_mkdir(info, destination_path);
+				cfs_mv(info, mv_modes, directory_inodeList, destination_path);
 			} else {	// source_mds->type == File.
-				cfs_touch(fileDesc, destination_path, CRE);
-				destination_nodeid = traverse_cfs(fileDesc, destination_path, getPathStartId(destination_path));
-				replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+				cfs_touch(info, destination_path, CRE);
+				destination_nodeid = traverse_cfs(info, destination_path, getPathStartId(info, destination_path));
+				replaceEntity(info, source_nodeid, destination_nodeid);
 			}
 		} else {	// destination_nodeid != -1.
 			// If the destination exists check its type.
-			destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+			destination_mds = (MDS*) (info->inodeTable + destination_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+			destination_mds->access_time = time(NULL);
 			if (destination_mds->type == Directory) {
 				// If destination is a directory check if exists the destination/source_name.
 				strcat(destination_path, "/");
 				strcat(destination_path, source_name);
-				destination_nodeid = traverse_cfs(fileDesc,source_name,destination_nodeid);
+				destination_nodeid = traverse_cfs(info,source_name,destination_nodeid);
 				if (destination_nodeid == -1) {
 					// If destination/source_name does not exists create a new directory or file with name <source_name>.
 					if(source_mds->type == Directory) {
 						directory_inodeList = NULL;
-						getDirEntities(fileDesc, source_path, &directory_inodeList);
-						cfs_mkdir(fileDesc, destination_path);
-						cfs_mv(fileDesc, mv_modes, directory_inodeList, destination_path);
+						getDirEntities(info, source_path, &directory_inodeList);
+						cfs_mkdir(info, destination_path);
+						cfs_mv(info, mv_modes, directory_inodeList, destination_path);
 					} else {
-						cfs_touch(fileDesc, destination_path, CRE);
-						destination_nodeid = traverse_cfs(fileDesc, destination_path, getPathStartId(destination_path));
-						replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+						cfs_touch(info, destination_path, CRE);
+						destination_nodeid = traverse_cfs(info, destination_path, getPathStartId(info, destination_path));
+						replaceEntity(info, source_nodeid, destination_nodeid);
 					}
 				} else {	// destination_nodeid != -1.
 					// If destination/source_name exists check if the type of source and destination are matching.
-					destination_mds = (MDS*) (inodeTable + destination_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+					destination_mds = (MDS*) (info->inodeTable + destination_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+					destination_mds->access_time = time(NULL);
 					if (source_mds->type == Directory && destination_mds->type == Directory) {
 						if (mv_modes[MV_I] == true) {
 							printf("mv: You want to overide '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
@@ -1155,15 +1120,15 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 								answer = strtok(line, " \n\t");
 							}
 							if (answer == NULL || (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0)) {
-								printf("Copy denied.\n");
+								printf("Move denied.\n");
 								free(source_path);
-								cfs_rm(fileDesc, rm_modes, source_path);
+								cfs_rm(info, rm_modes, source_path);
 								continue;
 							}
 						}
 						directory_inodeList = NULL;
-						getDirEntities(fileDesc, source_path, &directory_inodeList);
-						cfs_mv(fileDesc, mv_modes, directory_inodeList, destination_path);
+						getDirEntities(info, source_path, &directory_inodeList);
+						cfs_mv(info, mv_modes, directory_inodeList, destination_path);
 					} else if (source_mds->type == File && destination_mds->type == File) {
 						if (mv_modes[MV_I] == true) {
 							printf("mv: You want to overwrite '%s' to '%s'? (Press y|Y for yes) ", source_path, destination_path);
@@ -1172,14 +1137,17 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 								answer = strtok(line, " \n\t");
 							}
 							if (answer == NULL || (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0)) {
-								printf("Copy denied.\n");
-								cfs_rm(fileDesc, rm_modes, source_path);
+								printf("Move denied.\n");
+								cfs_rm(info, rm_modes, source_path);
 								free(source_path);
 								continue;
 							}
 						}
-						cfs_touch(fileDesc, destination_path, MOD);
-						replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+						current_time = time(NULL);
+						destination_mds->creation_time = current_time;
+						destination_mds->access_time = current_time;
+						destination_mds->modification_time = current_time;
+						replaceEntity(info, source_nodeid, destination_nodeid);
 						destination_mds->linkCounter = 1;
 					} else if (source_mds->type != Directory && destination_mds->type == Directory) {
 						printf("mv: cannot overwrite directory '%s' with non-directory '%s'\n", destination_path, source_path);
@@ -1201,27 +1169,29 @@ bool cfs_mv(int fileDesc, bool *mv_modes, string_List *sourceList, char *destina
 							answer = strtok(line, " \n\t");
 						}
 						if (answer == NULL || (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0)) {
-							printf("Copy denied.\n");
-							cfs_rm(fileDesc, rm_modes, source_path);
+							printf("Move denied.\n");
+							cfs_rm(info, rm_modes, source_path);
 							free(source_path);
 							continue;
 						}
 					}
-					cfs_touch(fileDesc, destination_path, MOD);
-					replaceEntity(fileDesc, source_nodeid, destination_nodeid);
+					current_time = time(NULL);
+					destination_mds->creation_time = current_time;
+					destination_mds->access_time = current_time;
+					destination_mds->modification_time = current_time;
+					replaceEntity(info, source_nodeid, destination_nodeid);
 					destination_mds->linkCounter = 1;
 				}
 			}
 		}
-
-		cfs_rm(fileDesc, rm_modes, source_path);
+		cfs_rm(info, rm_modes, source_path);
 		free(source_path);
 	}
 
 	return true;
 }
 
-bool cfs_rm(int fileDesc, bool *modes, char *dirname)
+bool cfs_rm(cfs_info *info, bool *modes, char *dirname)
 {
 	int		move, ignore = 0;
 	int		start, nodeid;
@@ -1230,9 +1200,9 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 	Datastream	data;
 
 	// Find the nodeid of the first entity in path 'dirname'
-	start = getPathStartId(dirname);
+	start = getPathStartId(info, dirname);
 	// Get the nodeid of the entity the destination path leads to
-	nodeid = traverse_cfs(fileDesc,dirname,start);
+	nodeid = traverse_cfs(info,dirname,start);
 	// If destination parth is invalid
 	if(nodeid == -1)
 	{
@@ -1240,8 +1210,9 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 		return false;
 	}
 
-	metadata = (MDS*) (inodeTable + nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-	data.datablocks = (int*) (inodeTable + nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
+	metadata = (MDS*) (info->inodeTable + nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+	metadata->access_time = time(NULL);
+	data.datablocks = (int*) (info->inodeTable + nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
 	// If it is not a directory
 	if(metadata->type != Directory)
 	{
@@ -1249,31 +1220,31 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 		return false;
 	}
 
-	char		content_name[sB.filenameSize];
-	int		content_nodeid, newCounter;
-	MDS		*content_mds;
-	Datastream	content_data;
+	char		 content_name[(info->sB).filenameSize];
+	int			 content_nodeid, newCounter;
+	MDS			*content_mds;
+	Datastream	 content_data;
 	// For directory's each datablock
-	for(int i=0; i<sB.maxFileDatablockNum; i++)
+	for(int i=0; i<(info->sB).maxFileDatablockNum; i++)
 	{
 		// If datablock has contents
 		if(data.datablocks[i] != -1)
 		{	// Get number of entities in current datablock
-			CALL(lseek(fileDesc,data.datablocks[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-			SAFE_READ(fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
+			CALL(lseek(info->fileDesc,data.datablocks[i]*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_READ(info->fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
 			// Number of entities in datablock after remove is completed
 			newCounter = 0;
 			// For every entity in datablock
 			for(int j=0; j<dataCounter; j++)
 			{
-				move = data.datablocks[i]*sB.blockSize + sizeof(int) + j*(sB.filenameSize + sizeof(int));
-				CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				move = data.datablocks[i]*(info->sB).blockSize + sizeof(int) + j*((info->sB).filenameSize + sizeof(int));
+				CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 				// Get current entity's name
-				SAFE_READ(fileDesc,content_name,0,sizeof(char),sB.filenameSize);
+				SAFE_READ(info->fileDesc,content_name,0,sizeof(char),(info->sB).filenameSize);
 				// If it is not the current or parent entity
 				if(strcmp(content_name,".") && strcmp(content_name,".."))
 				{	// Get entity's nodeid
-					SAFE_READ(fileDesc,&content_nodeid,0,sizeof(int),sizeof(int));
+					SAFE_READ(info->fileDesc,&content_nodeid,0,sizeof(int),sizeof(int));
 
 					// If '-i' was given as an argument
 					if(modes[RM_I] == true)
@@ -1287,10 +1258,10 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 							// If there is a hole inside datablock, fill it
 							if(j > newCounter)
 							{
-								move = data.datablocks[i]*sB.blockSize + sizeof(int) + newCounter*(sB.filenameSize+sizeof(int));
-								CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-								SAFE_WRITE(fileDesc,content_name,0,sizeof(char),sB.filenameSize);
-								SAFE_WRITE(fileDesc,&content_nodeid,0,sizeof(int),sizeof(int));
+								move = data.datablocks[i]*(info->sB).blockSize + sizeof(int) + newCounter*((info->sB).filenameSize+sizeof(int));
+								CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+								SAFE_WRITE(info->fileDesc,content_name,0,sizeof(char),(info->sB).filenameSize);
+								SAFE_WRITE(info->fileDesc,&content_nodeid,0,sizeof(int),sizeof(int));
 							}
 							// Increase newCounter and go to the next entity
 							newCounter++;
@@ -1298,20 +1269,22 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 						}
 					}
 
-					content_mds = (MDS*) (inodeTable + content_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
-					content_data.datablocks = (int*) (inodeTable + content_nodeid*inodeSize + sizeof(bool) + sB.filenameSize + sizeof(MDS));
+					content_mds = (MDS*) (info->inodeTable + content_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+					content_mds->access_time = time(NULL);
+					content_data.datablocks = (int*) (info->inodeTable + content_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
 					// If it is a file, it will be removed
 					if(content_mds->type == File)
 					{
 						content_mds->linkCounter--;
+						content_mds->modification_time = time(NULL);
 						if(!content_mds->linkCounter)
 						{
 							// Push allocated datablocks in holeList
-							for(int k=0; k<sB.maxFileDatablockNum; k++)
+							for(int k=0; k<(info->sB).maxFileDatablockNum; k++)
 								if(content_data.datablocks[k] != -1)
 								{
-									addNode(&holes,content_data.datablocks[k]);
-									sB.ListSize++;
+									addNode(&(info->holes),content_data.datablocks[k]);
+									(info->sB).ListSize++;
 								}
 						}
 					}
@@ -1321,22 +1294,22 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 						{	// If '-r' was given as an argument, it will be removed
 							if(modes[RM_R] == true)
 							{
-								char	recursion_name[strlen(dirname)+sB.filenameSize+2];
+								char	recursion_name[strlen(dirname)+(info->sB).filenameSize+2];
 								strcpy(recursion_name,dirname);
 								strcat(recursion_name,"/");
 								strcat(recursion_name,content_name);
-								cfs_rm(fileDesc,modes,recursion_name);
+								cfs_rm(info,modes,recursion_name);
 								// Remove directory's first datablock (with the current and parent entities)
-								addNode(&holes,content_data.datablocks[0]);
-								sB.ListSize++;
+								addNode(&(info->holes),content_data.datablocks[0]);
+								(info->sB).ListSize++;
 							}
 							// Else, it will not be removed. If there is a hole inside datablock, fill it
 							else if(j > newCounter)
 							{
-								move = data.datablocks[i]*sB.blockSize + sizeof(int) + newCounter*(sB.filenameSize+sizeof(int));
-								CALL(lseek(fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-								SAFE_WRITE(fileDesc,content_name,0,sizeof(char),sB.filenameSize);
-								SAFE_WRITE(fileDesc,&content_nodeid,0,sizeof(int),sizeof(int));
+								move = data.datablocks[i]*(info->sB).blockSize + sizeof(int) + newCounter*((info->sB).filenameSize+sizeof(int));
+								CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+								SAFE_WRITE(info->fileDesc,content_name,0,sizeof(char),(info->sB).filenameSize);
+								SAFE_WRITE(info->fileDesc,&content_nodeid,0,sizeof(int),sizeof(int));
 								printf("rm: cannot remove '%s': Is a non-empty directory", dirname);
 								// Increase newCounter and go to the next entity
 								newCounter++;
@@ -1351,12 +1324,13 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 						}
 					}
 					// If it is a file or an empty directory, remove it
-					*(bool*) (inodeTable + content_nodeid*inodeSize) = false;
-					metadata->size -= sB.filenameSize + sizeof(int);
-					sB.nodeidCounter--;
+					*(bool*) (info->inodeTable + content_nodeid*(info->inodeSize)) = false;
+					metadata->size -= (info->sB).filenameSize + sizeof(int);
+					metadata->modification_time = time(NULL);
+					(info->sB).nodeidCounter--;
 					// If it is the last in inodeTable do not keep the hole (inner holes should be maintained)
-					if(content_nodeid == (sB.iTableCounter-1))
-						sB.iTableCounter--;
+					if(content_nodeid == ((info->sB).iTableCounter-1))
+						(info->sB).iTableCounter--;
 				}
 				// If it is the current or parent entity
 				else
@@ -1365,16 +1339,17 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 			// If datablock has still contents (maybe only current and parent entity), update counter
 			if(newCounter > 0)
 			{
-				CALL(lseek(fileDesc,data.datablocks[i]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-				SAFE_WRITE(fileDesc,&newCounter,0,sizeof(int),sizeof(int));
+				CALL(lseek(info->fileDesc,data.datablocks[i]*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+				SAFE_WRITE(info->fileDesc,&newCounter,0,sizeof(int),sizeof(int));
 			}
 			// Else, add it to holeList and remove it from directory's data
 			else
 			{
-				addNode(&holes,data.datablocks[i]);
-				sB.ListSize++;
+				addNode(&(info->holes),data.datablocks[i]);
+				(info->sB).ListSize++;
 				data.datablocks[i] = -1;
 				metadata->datablocksCounter--;
+				metadata->modification_time = time(NULL);
 				checked--;
 			}
 
@@ -1389,7 +1364,7 @@ bool cfs_rm(int fileDesc, bool *modes, char *dirname)
 	return true;
 }
 
-bool cfs_cat(int fileDesc, string_List *sourceList, char *outputPath)
+bool cfs_cat(cfs_info *info, string_List *sourceList, char *outputPath)
 {
 	int		start;
 	unsigned int	total_size = 0, output_size;
@@ -1397,9 +1372,9 @@ bool cfs_cat(int fileDesc, string_List *sourceList, char *outputPath)
 	MDS		*source_mds, *output_mds;
 
 	// Find the nodeid of the first entity in 'outputPath'
-	start = getPathStartId(outputPath);
+	start = getPathStartId(info, outputPath);
 	// Get the nodeid of the entity the output path leads to
-	output_nodeid = traverse_cfs(fileDesc,outputPath,start);
+	output_nodeid = traverse_cfs(info,outputPath,start);
 	// If output path was invalid
 	if(output_nodeid == -1)
 	{
@@ -1407,10 +1382,11 @@ bool cfs_cat(int fileDesc, string_List *sourceList, char *outputPath)
 		return false;
 	}
 	// Get output file's size
-	output_mds = (MDS*) (inodeTable + output_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+	output_mds = (MDS*) (info->inodeTable + output_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+	output_mds->access_time = time(NULL);
 	if(output_mds->type != File)
 	{
-		printf("Input error, output path %s is not a file.\n",inodeTable+output_nodeid*inodeSize+sizeof(bool));
+		printf("Input error, output path %s is not a file.\n",info->inodeTable+output_nodeid*(info->inodeSize)+sizeof(bool));
 		return false;
 	}
 	output_size = output_mds->size;
@@ -1425,17 +1401,18 @@ bool cfs_cat(int fileDesc, string_List *sourceList, char *outputPath)
 		source_name = get_stringNode(&sourceList,i);
 		if(source_name != NULL)
 		{
-			start = getPathStartId(source_name);
-			source_nodeid = traverse_cfs(fileDesc,source_name,start);
+			start = getPathStartId(info, source_name);
+			source_nodeid = traverse_cfs(info,source_name,start);
 			if(source_nodeid == -1)
 			{
 				printf("Path %s could not be found in cfs.\n",source_name);
 				return false;
 			}
-			source_mds = (MDS*) (inodeTable + source_nodeid*inodeSize + sizeof(bool) + sB.filenameSize);
+			source_mds = (MDS*) (info->inodeTable + source_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
+			source_mds->access_time = time(NULL);
 			if(source_mds->type != File)
 			{
-				printf("Input error, source path %s is not a file.\n",inodeTable+source_nodeid*inodeSize+sizeof(bool));
+				printf("Input error, source path %s is not a file.\n",info->inodeTable+source_nodeid*(info->inodeSize)+sizeof(bool));
 				return false;
 			}
 			total_size += source_mds->size;
@@ -1450,7 +1427,7 @@ bool cfs_cat(int fileDesc, string_List *sourceList, char *outputPath)
 		return false;
 	}
 
-	if(total_size > (sB.maxFileSize - output_size))
+	if(total_size > ((info->sB).maxFileSize - output_size))
 	{
 		printf("Not enough space in output file to cat all source files.\n");
 		return false;
@@ -1459,15 +1436,15 @@ bool cfs_cat(int fileDesc, string_List *sourceList, char *outputPath)
 	for(int i=0; i<listSize; i++)
 	{
 		source_name = pop_last_string(&sourceList);
-		start = getPathStartId(source_name);
-		source_nodeid = traverse_cfs(fileDesc,source_name,start);
+		start = getPathStartId(info, source_name);
+		source_nodeid = traverse_cfs(info,source_name,start);
 		if(source_nodeid == -1)
 		{
 			printf("Path %s could not be found in cfs.\n",source_name);
 			free(source_name);
 			return false;
 		}
-		append_file(fileDesc,source_nodeid,output_nodeid);
+		append_file(info,source_nodeid,output_nodeid);
 		free(source_name);
 	}
 
@@ -1484,7 +1461,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 	Datastream	data;
 
 	// Get the nodeid of the entity the destination path leads to
-	dest_nodeid = traverse_cfs(info,destPath,getPathStartId(destPath));
+	dest_nodeid = traverse_cfs(info,destPath,getPathStartId(info, destPath));
 	// If destination path was invalid
 	if(dest_nodeid == -1)
 	{
@@ -1633,7 +1610,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 				// Fill file's data
 				for(int j=0; j<(((info->sB).maxFileDatablockNum)); j++)
 				{
-					data.datablocks[j] = getEmptyBlock();
+					data.datablocks[j] = getEmptyBlock(info);
 					// File's datablocks are increased by one
 					source_mds->datablocksCounter++;
 					move = data.datablocks[j]*((info->sB).blockSize);
@@ -1676,11 +1653,12 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 {
 	int		ignore = 0;
-	int		source_nodeid, dest_nodeid, dest_entities;
+	int		source_nodeid;
 	char		*initial;
 	char		new_path[strlen(destPath)+((info->sB).filenameSize+2)];
-	MDS		*source_mds, *dest_mds;
-	Datastream	data;
+	MDS		*source_mds;
+	struct stat entity;
+	char		*split,*temp;
 
 	// If destination path does not exist
 	if(access(destPath,F_OK) == -1)
@@ -1718,9 +1696,6 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 		}
 	}
 
-	DIR		*dir;
-	char		new_path[strlen(destPath)+((info->sB).filenameSize+2)];
-
 	// For every source file
 	for(i=0; i<listSize; i++)
 	{
@@ -1734,7 +1709,7 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 			}
 
 			// Get the nodeid of the entity the source path leads to
-			source_nodeid = traverse_cfs(info,source_name,getPathStartId(source_name));
+			source_nodeid = traverse_cfs(info,source_name,getPathStartId(info, source_name));
 			// If source path was invalid
 			if(source_nodeid == -1)
 			{
@@ -1779,13 +1754,12 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 				int		move;
 				int		source_fd;
 				char		fileBuffer[(info->sB).blockSize];
-				MDS		*source_mds;
 				Datastream	data;
 
 				// Create file
 				CALL(creat(new_path, S_IRWXU | S_IXGRP),-1,"Error creating file from cfs: ",1,source_fd);
 
-				move = source_nodeid*(info->inodeSize) + sizeof(bool) + sB.filenameSize + sizeof(MDS);
+				move = source_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS);
 				data.datablocks = (int*) (info->inodeTable + move);
 
 				for(int i=0; i<((info->sB).maxFileDatablockNum); i++)
@@ -1819,16 +1793,16 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 	return true;
 }
 
-int cfs_create(char *filename,int bSize,int nameSize,unsigned int maxFSize,int maxDirFileNum)
+int cfs_create(cfs_info *info, int bSize,int nameSize,unsigned int maxFSize,int maxDirFileNum)
 {
-	int		fd = 0, ignore = 0;
+	int		ignore = 0;
 	time_t		current_time;
 	MDS		metadata;
 	Datastream	data;
 
-	holes = NULL;
+	info->holes = NULL;
 
-	CALL(creat(filename, S_IRWXU | S_IXGRP),-1,"Error creating file for cfs: ",1,fd);
+	CALL(creat(info->fileName, S_IRWXU | S_IXGRP),-1,"Error creating file for cfs: ",1,info->fileDesc);
 
 	// Create superblock
 	// Block size has to be a multiple of 512 bytes
@@ -1837,65 +1811,65 @@ int cfs_create(char *filename,int bSize,int nameSize,unsigned int maxFSize,int m
 		printf("Input error, block size is too small. Please try again.\n");
 		return -1;
 	}
-	sB.blockSize = (bSize != -1) ? bSize : BLOCK_SIZE;
+	(info->sB).blockSize = (bSize != -1) ? bSize : BLOCK_SIZE;
 	// Filename size has a ceiling (252 bytes)
 	if(nameSize != -1 && nameSize > MAX_FILENAME_SIZE)
 	{
 		printf("Input error, filename size is too long. Please try again.\n");
 		return -1;
 	}
-	sB.filenameSize = (nameSize != -1) ? nameSize : FILENAME_SIZE;
-	sB.maxFileSize = (maxFSize != -1) ? maxFSize : MAX_FILE_SIZE;
-	sB.maxFilesPerDir = (maxDirFileNum != -1) ? maxDirFileNum : MAX_DIRECTORY_FILE_NUMBER;
-	///	sB.metadataBlocksNum = (sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int)) / sB.blockSize;
-	///	if(((sB.filenameSize + sizeof(MDS) + (sB.maxDatablockNum)*sizeof(unsigned int)) % sB.blockSize) > 0)
-	///        	sB.metadataBlocksNum++;
+	(info->sB).filenameSize = (nameSize != -1) ? nameSize : FILENAME_SIZE;
+	(info->sB).maxFileSize = (maxFSize != -1) ? maxFSize : MAX_FILE_SIZE;
+	(info->sB).maxFilesPerDir = (maxDirFileNum != -1) ? maxDirFileNum : MAX_DIRECTORY_FILE_NUMBER;
+	///	(info->sB).metadataBlocksNum = ((info->sB).filenameSize + sizeof(MDS) + ((info->sB).maxDatablockNum)*sizeof(unsigned int)) / (info->sB).blockSize;
+	///	if((((info->sB).filenameSize + sizeof(MDS) + ((info->sB).maxDatablockNum)*sizeof(unsigned int)) % (info->sB).blockSize) > 0)
+	///        	(info->sB).metadataBlocksNum++;
 	// Every datablock of a directory contains some pairs of (filename+nodeid) for the directory's contents and a counter of those pairs
-	sB.maxEntitiesPerBlock = (sB.blockSize - sizeof(int)) / (sB.filenameSize + sizeof(int));
-	sB.maxFileDatablockNum = (sB.maxFileSize) / (sB.blockSize);
-	//	if((sB.blockSize - sizeof(int)) % (sB.filenameSize + sizeof(int)))
-	if(sB.maxFileSize % sB.blockSize)
-		sB.maxFileDatablockNum++;
-	sB.maxDirDatablockNum = (sB.maxFilesPerDir + 2) / sB.maxEntitiesPerBlock;
-	if((sB.maxFilesPerDir + 2) % sB.maxEntitiesPerBlock)
-		sB.maxDirDatablockNum++;
+	(info->sB).maxEntitiesPerBlock = ((info->sB).blockSize - sizeof(int)) / ((info->sB).filenameSize + sizeof(int));
+	(info->sB).maxFileDatablockNum = ((info->sB).maxFileSize) / ((info->sB).blockSize);
+	//	if(((info->sB).blockSize - sizeof(int)) % ((info->sB).filenameSize + sizeof(int)))
+	if((info->sB).maxFileSize % (info->sB).blockSize)
+		(info->sB).maxFileDatablockNum++;
+	(info->sB).maxDirDatablockNum = ((info->sB).maxFilesPerDir + 2) / (info->sB).maxEntitiesPerBlock;
+	if(((info->sB).maxFilesPerDir + 2) % (info->sB).maxEntitiesPerBlock)
+		(info->sB).maxDirDatablockNum++;
 
 	// Assume block-counting is zero based	
-	sB.blockCounter = 0;
+	(info->sB).blockCounter = 0;
 	// Only root in cfs for now
-	sB.nodeidCounter = 1;
-	sB.ListSize = 0;
-	// Assume that root's metadata can be stored in one block for now (sB.filenameSize+sizeof(MDS)+sizeof(int))
-	sB.iTableBlocksNum = 1;
-	sB.iTableCounter = sB.nodeidCounter;
+	(info->sB).nodeidCounter = 1;
+	(info->sB).ListSize = 0;
+	// Assume that root's metadata can be stored in one block for now ((info->sB).filenameSize+sizeof(MDS)+sizeof(int))
+	(info->sB).iTableBlocksNum = 1;
+	(info->sB).iTableCounter = (info->sB).nodeidCounter;
 	// Get superblock's overflow block (contains the inodeTable and the holeList)
-	sB.nextSuperBlock = getEmptyBlock();
-	CALL(lseek(fd,sB.nextSuperBlock*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	(info->sB).nextSuperBlock = getEmptyBlock(info);
+	CALL(lseek(info->fileDesc,(info->sB).nextSuperBlock*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 	int	overflow_block = -1;
-	SAFE_WRITE(fd,&overflow_block,0,sizeof(int),sizeof(int));
+	SAFE_WRITE(info->fileDesc,&overflow_block,0,sizeof(int),sizeof(int));
 
 	int	blocknum;
 	// Get block for root's meatdata (one block for now)
-	blocknum = getEmptyBlock();
-	sB.root = blocknum;
+	blocknum = getEmptyBlock(info);
+	(info->sB).root = blocknum;
 	// Write blocknum in iTable map
-	SAFE_WRITE(fd,&blocknum,0,sizeof(int),sizeof(int));
+	SAFE_WRITE(info->fileDesc,&blocknum,0,sizeof(int),sizeof(int));
 
 	// Write superBlock	
-	CALL(lseek(fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-	SAFE_WRITE(fd,&sB,0,sizeof(superBlock),sizeof(superBlock));
+	CALL(lseek(info->fileDesc,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	SAFE_WRITE(info->fileDesc,&(info->sB),0,sizeof(superBlock),sizeof(superBlock));
 
 	// Go to block with root's metadata (one block for now)
-	CALL(lseek(fd,blocknum*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	CALL(lseek(info->fileDesc,blocknum*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 
 	// Write root's name (cannot be larger than a block)
-	CALL(write(fd,"/",2),-1,"Error writing in cfs file: ",3,ignore);
+	CALL(write(info->fileDesc,"/",2),-1,"Error writing in cfs file: ",3,ignore);
 	// Leave filenameSize space free
-	CALL(lseek(fd,sB.filenameSize-2,SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
+	CALL(lseek(info->fileDesc,(info->sB).filenameSize-2,SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
 
 	metadata.nodeid = 0;
 	// Root's data contain the relative paths (. & ..)
-	metadata.size = 2*(sB.filenameSize + sizeof(int));
+	metadata.size = 2*((info->sB).filenameSize + sizeof(int));
 	metadata.type = Directory;
 	metadata.parent_nodeid = 0;
 	current_time = time(NULL);
@@ -1906,51 +1880,51 @@ int cfs_create(char *filename,int bSize,int nameSize,unsigned int maxFSize,int m
 	metadata.datablocksCounter = 1;
 
 	// Write root's metadata
-	SAFE_WRITE(fd,&metadata,0,sizeof(MDS),sizeof(MDS));
+	SAFE_WRITE(info->fileDesc,&metadata,0,sizeof(MDS),sizeof(MDS));
 
 	// Create root's data blocks (one block for now)
 	data.datablocks = (int*)malloc(sizeof(int));
-	data.datablocks[0] = getEmptyBlock();
-	CALL(lseek(fd,data.datablocks[0]*sB.blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	data.datablocks[0] = getEmptyBlock(info);
+	CALL(lseek(info->fileDesc,data.datablocks[0]*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 	// Write entities' counter for current datablock
 	int	entityCounter = 2;
-	SAFE_WRITE(fd,&entityCounter,0,sizeof(int),sizeof(int));
+	SAFE_WRITE(info->fileDesc,&entityCounter,0,sizeof(int),sizeof(int));
 	// Write entity (filename + nodeid) for relative path "."
-	CALL(write(fd,".",2),-1,"Error writing in cfs file: ",3,ignore);
+	CALL(write(info->fileDesc,".",2),-1,"Error writing in cfs file: ",3,ignore);
 	// Leave filenameSize space free
-	CALL(lseek(fd,sB.filenameSize-2,SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
-	SAFE_WRITE(fd,&(metadata.nodeid),0,sizeof(int),sizeof(int));
+	CALL(lseek(info->fileDesc,(info->sB).filenameSize-2,SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
+	SAFE_WRITE(info->fileDesc,&(metadata.nodeid),0,sizeof(int),sizeof(int));
 	// Write entity for relative path ".."
-	CALL(write(fd,"..",3),-1,"Error writing in cfs file: ",3,ignore);
+	CALL(write(info->fileDesc,"..",3),-1,"Error writing in cfs file: ",3,ignore);
 	// Leave filenameSize space free
-	CALL(lseek(fd,sB.filenameSize-3,SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
-	SAFE_WRITE(fd,&(metadata.parent_nodeid),0,sizeof(int),sizeof(int));
+	CALL(lseek(info->fileDesc,(info->sB).filenameSize-3,SEEK_CUR),-1,"Error moving ptr in cfs file: ",5,ignore);
+	SAFE_WRITE(info->fileDesc,&(metadata.parent_nodeid),0,sizeof(int),sizeof(int));
 
 	// Write root's datablocks ~part of metadata~ (one block for now)
-	int	move = blocknum*sB.blockSize + sB.filenameSize + sizeof(MDS);
-	CALL(lseek(fd,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-	SAFE_WRITE(fd,data.datablocks,0,sizeof(int),sizeof(int));
+	int	move = blocknum*(info->sB).blockSize + (info->sB).filenameSize + sizeof(MDS);
+	CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	SAFE_WRITE(info->fileDesc,data.datablocks,0,sizeof(int),sizeof(int));
 
 	// Write superBlock	
-	CALL(lseek(fd,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-	SAFE_WRITE(fd,&sB,0,sizeof(superBlock),sizeof(superBlock));
+	CALL(lseek(info->fileDesc,0,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+	SAFE_WRITE(info->fileDesc,&(info->sB),0,sizeof(superBlock),sizeof(superBlock));
 
-	CALL(close(fd),-1,"Error closing file for cfs: ",4,ignore);
+	CALL(close(info->fileDesc),-1,"Error closing file for cfs: ",4,ignore);
 
 	free(data.datablocks);
-	return fd;
+	return info->fileDesc;
 }
 
-bool cfs_close(int fileDesc) 
+bool cfs_close(cfs_info *info) 
 {
-	if(fileDesc != -1)
+	if(info->fileDesc != -1)
 	{
 		int ignore = 0;
 		// Update superblock, inodeTable, holeList
-        	update_superBlock(fileDesc);
-        	free(inodeTable);
+        	update_superBlock(info);
+        	free(info->inodeTable);
 
-        	CALL(close(fileDesc),-1,"Error closing file for cfs: ",4,ignore);
+        	CALL(close(info->fileDesc),-1,"Error closing file for cfs: ",4,ignore);
         	return true;
     	}
 

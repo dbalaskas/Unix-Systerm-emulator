@@ -7,7 +7,7 @@ int cfs_mkdir(cfs_info*,char*);
 int cfs_touch(cfs_info*,char*,touch_mode);
 int cfs_ln(cfs_info*,char*,char*);
 int cfs_create(cfs_info*,int,int,unsigned int,int);
-bool cfs_pwd();
+bool cfs_pwd(cfs_info*);
 bool cfs_cd(cfs_info*,char*);
 bool cfs_ls(cfs_info*,bool*,char*);
 bool cfs_cp(cfs_info*,bool*,string_List*,char*);
