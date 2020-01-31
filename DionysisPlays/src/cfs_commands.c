@@ -1014,7 +1014,7 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 	char		 line[100];
 	char		*answer;
 	string_List *directory_inodeList;
-	bool		rm_modes[rm_mode_Num];
+//	bool		rm_modes[rm_mode_Num];
 
 	char 		*source_path;
 	char 		 source_name[(info->sB).filenameSize];
@@ -1028,8 +1028,8 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 	int			 destination_nodeid;
 	MDS 		*destination_mds;
 
-	rm_modes[RM_I] = false;
-	rm_modes[RM_R] = true;
+//	rm_modes[RM_I] = false;
+//	rm_modes[RM_R] = true;
 	//------------------------------------------------------------------------------------
 	// Get rid of possible extra '/'
 	cleanSlashes(&destination);
@@ -1111,7 +1111,8 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 							}
 							if (answer == NULL || (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0)) {
 								printf("Move denied.\n");
-								cfs_rm(info, rm_modes, source_path);
+//								cfs_rm(info, rm_modes, source_path);
+								remove_entity(info,source_path);
 								free(source_path);
 								continue;
 							}
@@ -1128,7 +1129,8 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 							}
 							if (answer == NULL || (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0)) {
 								printf("Move denied.\n");
-								cfs_rm(info, rm_modes, source_path);
+//								cfs_rm(info, rm_modes, source_path);
+								remove_entity(info,source_path);
 								free(source_path);
 								continue;
 							}
@@ -1160,7 +1162,8 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 						}
 						if (answer == NULL || (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0)) {
 							printf("Move denied.\n");
-							cfs_rm(info, rm_modes, source_path);
+//							cfs_rm(info, rm_modes, source_path);
+							remove_entity(info,source_path);
 							free(source_path);
 							continue;
 						}
@@ -1174,7 +1177,8 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 				}
 			}
 		}
-		cfs_rm(info, rm_modes, source_path);
+//		cfs_rm(info, rm_modes, source_path);
+		remove_entity(info,source_path);
 		free(source_path);
 	}
 
@@ -1210,86 +1214,11 @@ bool cfs_rm(cfs_info *info, bool *modes, char *path)
 	metadata->access_time = time(NULL);
 	data.datablocks = (int*) (info->inodeTable + nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
 
-	// If it is a file
-	if(metadata->type == File)
+	// If it is not a Directory
+	if(metadata->type != Directory)
 	{
-		char		 filename[(info->sB).filenameSize];
-		int			 parent_nodeid;
-		MDS			*parent_mds;
-		Datastream	 parent_data;
-
-		metadata->linkCounter--;
-		metadata->modification_time = time(NULL);
-		// If linkCounter is now 0
-		if(!metadata->linkCounter)
-		{
-			// Push allocated datablocks in holeList
-			for(int i=0; i<(info->sB).maxFileDatablockNum; i++)
-				if(data.datablocks[i] != -1)
-				{
-					addNode(&(info->holes),data.datablocks[i]);
-					(info->sB).ListSize++;
-				}
-			// Remove it from the inodeTable
-			*(bool*) (info->inodeTable + nodeid*(info->inodeSize)) = false;
-			(info->sB).nodeidCounter--;
-			// If it is the last in inodeTable do not keep the hole (inner holes should be maintained)
-			if(nodeid == ((info->sB).iTableCounter-1))
-				(info->sB).iTableCounter--;
-		}
-
-		// Get parent's nodeid, metadata and data
-		parent_nodeid = get_parent(info,path,NULL);
-		parent_mds = (MDS*) (info->inodeTable + parent_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize); 
-		parent_mds->access_time = time(NULL);
-		parent_data.datablocks = (int*) (info->inodeTable + parent_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
-		parent_mds->size -= (info->sB).filenameSize + sizeof(int);
-		parent_mds->modification_time = time(NULL);
-		// Update parent directory's data
-		for(int i=0; i<(info->sB).maxFileDatablockNum; i++)
-		{	// If datablock has contents
-			if(parent_data.datablocks[i] != -1)
-			{	// Get data counter
-				move = parent_data.datablocks[i]*(info->sB).blockSize;
-				CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-				SAFE_READ(info->fileDesc,&dataCounter,0,sizeof(int),sizeof(int));
-			
-				// For every entity in datablock
-				for(int j=0; j<dataCounter; j++)
-				{
-					move = parent_data.datablocks[i]*(info->sB).blockSize + sizeof(int) + j*((info->sB).filenameSize + sizeof(int));
-					CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-					// Get current entity's name
-					SAFE_READ(info->fileDesc,content_name,0,sizeof(char),(info->sB).filenameSize);
-					// If it is the file we are removing
-					if(!strcmp(content_name,filename))
-					{	// If removing it will leave holes
-						if(dataCounter > 1 && j < (dataCounter-1))
-						{	// Get datablock's last entity
-							move = parent_data.datablocks[i]*(info->sB).blockSize + sizeof(int) + (dataCounter-1)*((info->sB).filenameSize+sizeof(int));
-							CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-							SAFE_READ(info->fileDesc,content_name,0,sizeof(char),(info->sB).filenameSize);
-							SAFE_READ(info->fileDesc,&content_nodeid,0,sizeof(char),(info->sB).filenameSize);
-
-							// Fill the hole
-							move = parent_data.datablocks[i]*(info->sB).blockSize + sizeof(int) + j*((info->sB).filenameSize+sizeof(int));
-							CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-							SAFE_WRITE(info->fileDesc,content_name,0,sizeof(char),(info->sB).filenameSize);
-							SAFE_WRITE(info->fileDesc,&content_nodeid,0,sizeof(int),sizeof(int));
-						}
-						// Update datablock's counter
-						newCounter = dataCounter - 1;
-						move = parent_data.datablocks[i]*(info->sB).blockSize;
-						CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-						SAFE_WRITE(info->fileDesc,&newCounter,0,sizeof(int),sizeof(int));
-
-						break;
-					}
-				}
-			}
-		}
-
-		return true;
+		printf("rm: Input error, path '%s' is not a directory.\n",path);
+		return false;
 	}
 
 	// For directory's each datablock
@@ -1366,7 +1295,8 @@ bool cfs_rm(cfs_info *info, bool *modes, char *path)
 							{
 								char	recursion_name[strlen(path)+(info->sB).filenameSize+2];
 								strcpy(recursion_name,path);
-								strcat(recursion_name,"/");
+								if(strcmp(path,"/"))
+									strcat(recursion_name,"/");
 								strcat(recursion_name,content_name);
 								cfs_rm(info,modes,recursion_name);
 								// Remove directory's first datablock (with the current and parent entities)
@@ -1394,7 +1324,7 @@ bool cfs_rm(cfs_info *info, bool *modes, char *path)
 						}
 					}
 
-					// If it is a file (with no more links) or an empty directory, remove it
+					// If it is a file (with no links) or an empty directory, remove it
 					if(content_mds->type == Directory || (content_mds == File && !content_mds->linkCounter))
 					{
 						*(bool*) (info->inodeTable + content_nodeid*(info->inodeSize)) = false;
