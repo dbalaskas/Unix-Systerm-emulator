@@ -281,7 +281,7 @@ int getTableSpace(cfs_info *info)
 }
 
 // Find entity (filname) in cfs, starting from entity with nodeid 'start'
-int traverse_cfs(cfs_info *info,char *filename)
+int traverse_cfs(cfs_info *info,char *filename,int nodeid)
 {
 	int		start, curr_nodeid;
 	int		offset, i, move;
@@ -296,10 +296,10 @@ int traverse_cfs(cfs_info *info,char *filename)
 	strcpy(path_name,filename);
 	// If path starts from the root
 	if(path_name[0] == '/')
-		start = (info->sB).root;
+		start = (nodeid == -1) ? ((info->sB).root) : (nodeid);
 	// In any other case, traverse should start from current nodeid
 	else
-		start = info->cfs_current_nodeid;
+		start = (nodeid == -1) ? (info->cfs_current_nodeid) : (nodeid);
 
 	// Get first entity in path
 	split = strtok(path_name,"/");
