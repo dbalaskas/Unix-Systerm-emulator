@@ -228,14 +228,14 @@ int cfs_mkdir(cfs_info *info, char *dirname)
 	// Check if parent is a directory
 	if(parent_mds->type != Directory)
 	{
-		printf("Input error, %s is not a directory.\n",info->inodeTable+parent_nodeid*(info->inodeSize)+sizeof(bool));
+		printf("mkdir: Input error, %s is not a directory.\n",info->inodeTable+parent_nodeid*(info->inodeSize)+sizeof(bool));
 		return -1;
 	}
 
 	// Check if new directory exists
-	if(traverse_cfs(info,new_name,parent_nodeid) != -1)
+	if(traverse_cfs(info,new_name) != -1)
 	{
-		printf("Input error, directory %s already exists.\n",dirname);
+		printf("mkdir: Input error, directory %s already exists.\n",dirname);
 		return -1;
 	}
 
@@ -275,7 +275,7 @@ int cfs_mkdir(cfs_info *info, char *dirname)
 		// If parent directory has no datablocks available
 		if(parent_mds->datablocksCounter == (info->sB).maxDirDatablockNum && numofEntities == (info->sB).maxEntitiesPerBlock*(info->sB).maxDirDatablockNum)
 		{
-			printf("Not enough space in parent directory to create subdirectory %s.\n",dirname);
+			printf("mkdir: Not enough space in parent directory to create subdirectory %s.\n",dirname);
 			return -1;
 		}
 	
@@ -361,7 +361,7 @@ int cfs_touch(cfs_info *info, char *filename,touch_mode mode)
 		int		parent_nodeid, new_nodeid;
 		int		i, offset;
 		char		new_name[(info->sB).filenameSize+1];
-		char	parent_path[strlen(filename)+1];
+		char		parent_path[strlen(filename)+1];
 		bool		busy;
 		time_t		curr_time;
 		MDS		*parent_mds, *metadata;
@@ -387,7 +387,7 @@ int cfs_touch(cfs_info *info, char *filename,touch_mode mode)
 		}
 
 		// Check if file exists
-		if(traverse_cfs(info,new_name,parent_nodeid) != -1)
+		if(traverse_cfs(info,new_name) != -1)
 		{
 			printf("Input error, file %s already exists.\n",filename);
 			return -1;
@@ -429,7 +429,7 @@ int cfs_touch(cfs_info *info, char *filename,touch_mode mode)
 			// If parent directory has no datablocks available
 			if(parent_mds->datablocksCounter == (info->sB).maxDirDatablockNum && numofEntities == (info->sB).maxEntitiesPerBlock*(info->sB).maxDirDatablockNum)
 			{
-				printf("Not enough space in parent directory to create file %s.\n",filename);
+				printf("touch: Not enough space in parent directory to create file %s.\n",filename);
 				return -1;
 			}
 	
@@ -487,48 +487,16 @@ int cfs_touch(cfs_info *info, char *filename,touch_mode mode)
 	}
 	else
 	{
-		int	start, nodeid;
-		char	temp[(info->sB).filenameSize];
+		int	nodeid;
 		time_t	curr_time;
-		MDS	*current_mds, *metadata;
+		MDS	*metadata;
 
-		// If path starts with "/"
-		if(!strncmp(filename,"/",1))
-			// Traversing cfs will start from the root (parent_nodeid = 0)
-			start = 0;
-		else
-		{
-			char	*split;
-			char	strtk_filename[(info->sB).filenameSize];
-			// Will be used in strtok (changes initial string)
-			strcpy(strtk_filename,filename);
-
-			// Get first entity in path
-			split = strtok(strtk_filename,"/");
-			// If path starts from current directory's parent
-			if(!strcmp(split,".."))
-			{
-				current_mds = (MDS*)(info->inodeTable + (info->cfs_current_nodeid)*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
-				current_mds->access_time = time(NULL);
-				start = current_mds->parent_nodeid;
-			}
-			else//if(!strcmp(split,".") || strcmp(split,"/"))
-			{
-				// If path starts from current directory
-				start = info->cfs_current_nodeid;
-				if(strcmp(split,".") && strcmp(split,"/"))
-				{
-					strcpy(temp,"./");
-					strcat(temp,filename);
-					strcpy(filename,temp);
-				}
-			}
-		}
-
-		nodeid = traverse_cfs(info,filename,start);
+		// Find entity in cfs
+		nodeid = traverse_cfs(info,filename);
+		// If path was invalid
 		if(nodeid == -1)
 		{
-			printf("Path %s could not be found in cfs.\n",filename);
+			printf("touch: Path %s could not be found in cfs.\n",filename);
 			return -1;
 		}
 		else
@@ -565,7 +533,7 @@ int cfs_ln(cfs_info *info, char* source_path,char* destination)
 
 	// Check if source exists.
 	get_parent(info, source_path, source_name);
-	source_nodeid = traverse_cfs(info, source_path, getPathStartId(info, source_path));
+	source_nodeid = traverse_cfs(info, source_path);
 	if (source_nodeid == -1) {
 		printf("ln: cannot stat '%s': No such file or directory\n",source_path);
 		return -1;
@@ -584,7 +552,7 @@ int cfs_ln(cfs_info *info, char* source_path,char* destination)
 		return -1;
 	}
 
-	destination_nodeid = traverse_cfs(info,destination_name,directory_nodeid);
+	destination_nodeid = traverse_cfs(info,destination_name);
 	strcpy(destination_path, destination);
 	if (destination_nodeid != -1) {
 		destination_mds = (MDS*) (info->inodeTable + destination_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
@@ -701,7 +669,7 @@ bool cfs_cd(cfs_info *info, char *path)
 		return true;
 	}
 	// Find the nodeid of the path.
-	path_nodeId = traverse_cfs(info, path, getPathStartId(info, path));
+	path_nodeId = traverse_cfs(info, path);
 	// Check if the path has valid value.
 	if(path_nodeId == -1) {
 		printf("cd: %s: No such file or directory.\n", path);
@@ -741,7 +709,7 @@ bool cfs_ls(cfs_info *info, bool *ls_modes, char *path)
 		path_MDS = (MDS *) (info->inodeTable + path_nodeId*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
 		path_MDS->access_time = time(NULL);
 	} else {
-		path_nodeId = traverse_cfs(info, path, getPathStartId(info, path));
+		path_nodeId = traverse_cfs(info, path);
 
 		// Check if the path has valid value.
 		if(path_nodeId != -1) {
@@ -804,7 +772,7 @@ bool cfs_ls(cfs_info *info, bool *ls_modes, char *path)
 			current_filename = pop_minimum_string(&path_content_names);
 		}
 		if ((ls_modes[LS_A] == false && current_filename[0] != '.') || ls_modes[LS_A] == true) {
-			current_nodeid = traverse_cfs(info, current_filename, path_nodeId);
+			current_nodeid = traverse_cfs(info, current_filename);
 			current_MDS = (MDS *) (info->inodeTable + current_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
 			current_MDS->access_time = time(NULL);
 			if (ls_modes[LS_L] == true) {
@@ -841,7 +809,8 @@ bool cfs_ls(cfs_info *info, bool *ls_modes, char *path)
 			dirPathSize = strlen(temp) + strlen(current_filename) + 2;
 			if (tempSize < dirPathSize)
 				temp = realloc(temp, dirPathSize);
-			strcat(temp, "/");
+			if(strcmp(temp,"/"))
+				strcat(temp, "/");
 			strcat(temp, current_filename);
 			
 			printf("\n");
@@ -886,7 +855,7 @@ bool cfs_cp(cfs_info *info, bool *cp_modes, string_List *sourceList, char *desti
 		source_path = pop_last_string(&sourceList);
 		// Get source inode.
 		get_parent(info, source_path, source_name);
-		source_nodeid = traverse_cfs(info, source_path, getPathStartId(info, source_path));
+		source_nodeid = traverse_cfs(info, source_path);
 		// Check if source_path has valid value.
 		if(source_nodeid == -1) {
 			printf("cp: cannot stat '%s': No such file or directory\n",source_path);
@@ -902,7 +871,7 @@ bool cfs_cp(cfs_info *info, bool *cp_modes, string_List *sourceList, char *desti
 		}
 		//--------------------------------------------------------------------------------
 		// Get destination inode.
-		destination_nodeid = traverse_cfs(info,destination_name,directory_nodeid);
+		destination_nodeid = traverse_cfs(info,destination_name);
 		strcpy(destination_path, destination);
 		if (destination_nodeid == -1) {
 			if (sourcesCount != 1) {
@@ -919,7 +888,7 @@ bool cfs_cp(cfs_info *info, bool *cp_modes, string_List *sourceList, char *desti
 				}
 			} else {
 				cfs_touch(info, destination_path, CRE);
-				destination_nodeid = traverse_cfs(info, destination_path, getPathStartId(info, destination_path));
+				destination_nodeid = traverse_cfs(info, destination_path);
 				replaceEntity(info, source_nodeid, destination_nodeid);
 			}
 		} else {	// destination_nodeid != -1
@@ -929,7 +898,7 @@ bool cfs_cp(cfs_info *info, bool *cp_modes, string_List *sourceList, char *desti
 			if (destination_mds->type == Directory) {
 				strcat(destination_path, "/");
 				strcat(destination_path, source_name);
-				destination_nodeid = traverse_cfs(info,source_name,destination_nodeid);
+				destination_nodeid = traverse_cfs(info,source_name);
 				if (destination_nodeid == -1) {
 					if (source_mds->type == Directory) {
 						if (cp_modes[CP_RR] == true) {
@@ -942,7 +911,7 @@ bool cfs_cp(cfs_info *info, bool *cp_modes, string_List *sourceList, char *desti
 						}
 					} else {
 						cfs_touch(info, destination_path, CRE);
-						destination_nodeid = traverse_cfs(info, destination_path, getPathStartId(info, destination_path));
+						destination_nodeid = traverse_cfs(info, destination_path);
 						replaceEntity(info, source_nodeid, destination_nodeid);
 					}
 				} else {	// destination_nodeid != -1.
@@ -1059,7 +1028,7 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 		source_path = pop_last_string(&sourceList);
 		// Get source inode.
 		get_parent(info, source_path, source_name);
-		source_nodeid = traverse_cfs(info, source_path, getPathStartId(info, source_path));
+		source_nodeid = traverse_cfs(info, source_path);
 		// Check if source_path has valid value.
 		if(source_nodeid == -1) {
 			printf("mv: cannot stat '%s': No such file or directory\n",source_path);
@@ -1070,7 +1039,7 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 		source_mds->access_time = time(NULL);
 		//--------------------------------------------------------------------------------
 		// Get destination inode.
-		destination_nodeid = traverse_cfs(info,destination_name,directory_nodeid);
+		destination_nodeid = traverse_cfs(info,destination_name);
 		strcpy(destination_path, destination);
 		if (destination_nodeid == -1) {
 			// If the destination does not exists, it has to be imported only one source.
@@ -1084,7 +1053,7 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 				cfs_mv(info, mv_modes, directory_inodeList, destination_path);
 			} else {	// source_mds->type == File.
 				cfs_touch(info, destination_path, CRE);
-				destination_nodeid = traverse_cfs(info, destination_path, getPathStartId(info, destination_path));
+				destination_nodeid = traverse_cfs(info, destination_path);
 				replaceEntity(info, source_nodeid, destination_nodeid);
 			}
 		} else {	// destination_nodeid != -1.
@@ -1095,7 +1064,7 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 				// If destination is a directory check if exists the destination/source_name.
 				strcat(destination_path, "/");
 				strcat(destination_path, source_name);
-				destination_nodeid = traverse_cfs(info,source_name,destination_nodeid);
+				destination_nodeid = traverse_cfs(info,source_name);
 				if (destination_nodeid == -1) {
 					// If destination/source_name does not exists create a new directory or file with name <source_name>.
 					if(source_mds->type == Directory) {
@@ -1105,7 +1074,7 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 						cfs_mv(info, mv_modes, directory_inodeList, destination_path);
 					} else {
 						cfs_touch(info, destination_path, CRE);
-						destination_nodeid = traverse_cfs(info, destination_path, getPathStartId(info, destination_path));
+						destination_nodeid = traverse_cfs(info, destination_path);
 						replaceEntity(info, source_nodeid, destination_nodeid);
 					}
 				} else {	// destination_nodeid != -1.
@@ -1194,19 +1163,23 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 bool cfs_rm(cfs_info *info, bool *modes, char *dirname)
 {
 	int		move, ignore = 0;
-	int		start, nodeid;
+	int		nodeid;
 	int		dataCounter, checked = 0;
 	MDS		*metadata;
 	Datastream	data;
 
-	// Find the nodeid of the first entity in path 'dirname'
-	start = getPathStartId(info, dirname);
+	char		line[100], *answer;
+	char		content_name[(info->sB).filenameSize];
+	int		content_nodeid, newCounter;
+	MDS		*content_mds;
+	Datastream	content_data;
+
 	// Get the nodeid of the entity the destination path leads to
-	nodeid = traverse_cfs(info,dirname,start);
+	nodeid = traverse_cfs(info,dirname);
 	// If destination parth is invalid
 	if(nodeid == -1)
 	{
-		printf("Path %s could not be found in cfs.\n",dirname);
+		printf("rm: Path %s could not be found in cfs.\n",dirname);
 		return false;
 	}
 
@@ -1216,14 +1189,10 @@ bool cfs_rm(cfs_info *info, bool *modes, char *dirname)
 	// If it is not a directory
 	if(metadata->type != Directory)
 	{
-		printf("Input error, %s is not a directory.\n",dirname);
+		printf("rm: Input error, %s is not a directory.\n",dirname);
 		return false;
 	}
 
-	char		 content_name[(info->sB).filenameSize];
-	int			 content_nodeid, newCounter;
-	MDS			*content_mds;
-	Datastream	 content_data;
 	// For directory's each datablock
 	for(int i=0; i<(info->sB).maxFileDatablockNum; i++)
 	{
@@ -1249,11 +1218,13 @@ bool cfs_rm(cfs_info *info, bool *modes, char *dirname)
 					// If '-i' was given as an argument
 					if(modes[RM_I] == true)
 					{	// Ask user for confirmation
-						char	answer[4];
-						printf("Are you sure you want to delete item %s ?(yes/no):\n",content_name);
-						scanf("%s",answer);
+						printf("rm: Are you sure you want to delete item '%s' ? (Press y|Y for yes) ",content_name);
+						fgets(line,100,stdin);
+						if(line != NULL)
+							answer = strtok(line," \n\t");
+
 						// If user said no, go to the next entity
-						if(!strcmp(answer,"no"))
+						if(answer == NULL || strcmp(answer,"y") || strcmp(answer,"Y"))
 						{
 							// If there is a hole inside datablock, fill it
 							if(j > newCounter)
@@ -1366,19 +1337,19 @@ bool cfs_rm(cfs_info *info, bool *modes, char *dirname)
 
 bool cfs_cat(cfs_info *info, string_List *sourceList, char *outputPath)
 {
-	int		start;
 	unsigned int	total_size = 0, output_size;
 	int		source_nodeid, output_nodeid;
 	MDS		*source_mds, *output_mds;
 
-	// Find the nodeid of the first entity in 'outputPath'
-	start = getPathStartId(info, outputPath);
+	int	listSize, i;
+	char	*source_name = NULL;
+
 	// Get the nodeid of the entity the output path leads to
-	output_nodeid = traverse_cfs(info,outputPath,start);
+	output_nodeid = traverse_cfs(info,outputPath);
 	// If output path was invalid
 	if(output_nodeid == -1)
 	{
-		printf("Path %s could not be found in cfs.\n",outputPath);
+		printf("cat: Path %s could not be found in cfs.\n",outputPath);
 		return false;
 	}
 	// Get output file's size
@@ -1386,13 +1357,11 @@ bool cfs_cat(cfs_info *info, string_List *sourceList, char *outputPath)
 	output_mds->access_time = time(NULL);
 	if(output_mds->type != File)
 	{
-		printf("Input error, output path %s is not a file.\n",info->inodeTable+output_nodeid*(info->inodeSize)+sizeof(bool));
+		printf("cat: Input error, output path %s is not a file.\n",info->inodeTable+output_nodeid*(info->inodeSize)+sizeof(bool));
 		return false;
 	}
 	output_size = output_mds->size;
 
-	int	listSize, i;
-	char	*source_name = NULL;
 	// Get number of files in sourceList
 	listSize = getLength(sourceList);
 	// For every source file
@@ -1401,18 +1370,17 @@ bool cfs_cat(cfs_info *info, string_List *sourceList, char *outputPath)
 		source_name = get_stringNode(&sourceList,i);
 		if(source_name != NULL)
 		{
-			start = getPathStartId(info, source_name);
-			source_nodeid = traverse_cfs(info,source_name,start);
+			source_nodeid = traverse_cfs(info,source_name);
 			if(source_nodeid == -1)
 			{
-				printf("Path %s could not be found in cfs.\n",source_name);
+				printf("cat: Path %s could not be found in cfs.\n",source_name);
 				return false;
 			}
 			source_mds = (MDS*) (info->inodeTable + source_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
 			source_mds->access_time = time(NULL);
 			if(source_mds->type != File)
 			{
-				printf("Input error, source path %s is not a file.\n",info->inodeTable+source_nodeid*(info->inodeSize)+sizeof(bool));
+				printf("cat: Input error, source path %s is not a file.\n",info->inodeTable+source_nodeid*(info->inodeSize)+sizeof(bool));
 				return false;
 			}
 			total_size += source_mds->size;
@@ -1423,24 +1391,23 @@ bool cfs_cat(cfs_info *info, string_List *sourceList, char *outputPath)
 	// If less files than expected were found
 	if(i <= listSize)
 	{
-		printf("Input error, problem with list of source files.\n");
+		printf("cat: Input error, problem with list of source files.\n");
 		return false;
 	}
 
 	if(total_size > ((info->sB).maxFileSize - output_size))
 	{
-		printf("Not enough space in output file to cat all source files.\n");
+		printf("cat: Not enough space in output file to cat all source files.\n");
 		return false;
 	}
 
 	for(int i=0; i<listSize; i++)
 	{
 		source_name = pop_last_string(&sourceList);
-		start = getPathStartId(info, source_name);
-		source_nodeid = traverse_cfs(info,source_name,start);
+		source_nodeid = traverse_cfs(info,source_name);
 		if(source_nodeid == -1)
 		{
-			printf("Path %s could not be found in cfs.\n",source_name);
+			printf("cat: Path %s could not be found in cfs.\n",source_name);
 			free(source_name);
 			return false;
 		}
@@ -1460,31 +1427,37 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 	MDS		*source_mds, *dest_mds;
 	Datastream	data;
 
+	int	listSize, i;
+	char	*source_name = NULL;
+
+	int		move;
+	char		fileBuffer[((info->sB).blockSize)];
+	char		*split, *temp;
+	struct stat	entity;
+
 	// Get the nodeid of the entity the destination path leads to
-	dest_nodeid = traverse_cfs(info,destPath,getPathStartId(info, destPath));
+	dest_nodeid = traverse_cfs(info,destPath);
 	// If destination path was invalid
 	if(dest_nodeid == -1)
 	{
-		printf("Path %s could not be found in cfs.\n",destPath);
+		printf("import: Path %s could not be found in cfs.\n",destPath);
 		return false;
 	}
 	// Get destination directory's metadata
 	dest_mds = (MDS*) ((info->inodeTable) + dest_nodeid*(info->inodeSize) + sizeof(bool) + ((info->sB).filenameSize));
 	if(dest_mds->type != Directory)
 	{
-		printf("Input error, destination path %s is not a directory.\n",(info->inodeTable)+dest_nodeid*(info->inodeSize)+sizeof(bool));
+		printf("import: Input error, destination path %s is not a directory.\n",(info->inodeTable)+dest_nodeid*(info->inodeSize)+sizeof(bool));
 		return false;
 	}
 	dest_entities = getDirEntities(info,destPath,NULL);
 
-	int	listSize, i;
-	char	*source_name = NULL;
 	// Get number of entities in sourceList
 	listSize = getLength(sourceList);
 	// If source entities require too much space
 	if(listSize > (((info->sB).maxFilesPerDir) - dest_entities))
 	{
-		printf("Error, not enough space in destination directory.\n");
+		printf("import: Error, not enough space in destination directory.\n");
 		return false;
 	}
 
@@ -1495,15 +1468,11 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 		// If source_name is invalid
 		if(source_name == NULL)
 		{
-			printf("Input error, problem with list of source files.\n");
+			printf("import: Input error, problem with list of source files.\n");
 			return false;
 		}
 	}
 
-	int		move;
-	char		fileBuffer[((info->sB).blockSize)];
-	char		*split, *temp;
-	struct stat	entity;
 	// For every source file
 	for(i=0; i<listSize; i++)
 	{
@@ -1513,7 +1482,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 			// If source entity does not exist
 			if(access(source_name,F_OK) == -1)
 			{
-				printf("Input error, source entity %s does not exist.\n",source_name);
+				printf("import: Input error, source entity %s does not exist.\n",source_name);
 				free(source_name);
 				return false;
 			}
@@ -1592,7 +1561,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 				source_nodeid = cfs_touch(info,new_path,CRE);
 				if(source_nodeid == -1)
 				{
-					free(source_name);
+//					free(source_name);
 					return false;
 				}
 				move = source_nodeid*(info->inodeSize) + sizeof(bool) + ((info->sB).filenameSize);
@@ -1643,7 +1612,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 	// If less files than expected were found
 	if(i < listSize)
 	{
-		printf("Input error, problem with list of source files.\n");
+		printf("import: Input error, problem with list of source files.\n");
 		return false;
 	}
 
@@ -1657,31 +1626,32 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 	char		*initial;
 	char		new_path[strlen(destPath)+((info->sB).filenameSize+2)];
 	MDS		*source_mds;
-	struct stat entity;
+	struct stat	entity;
 	char		*split,*temp;
+
+	int	listSize, i;
+	char	*source_name = NULL;
 
 	// If destination path does not exist
 	if(access(destPath,F_OK) == -1)
 	{
-		printf("Input error, destination directory %s does not exist.\n",destPath);
+		printf("export: Input error, destination directory %s does not exist.\n",destPath);
 		return false;
 	}
 
 	// Try to get destination's type
 	if(stat(destPath,&entity) == -1)
 	{
-		perror("Error with stat in destination entity: ");
+		perror("export: Error with stat in destination entity: ");
 		return false;
 	}
 	// If destination is not a directory
 	if(!S_ISDIR(entity.st_mode))
 	{
-		printf("Input error, destination path %s is not a directory.\n",destPath);
+		printf("export: Input error, destination path %s is not a directory.\n",destPath);
 		return false;
 	}
 
-	int	listSize, i;
-	char	*source_name = NULL;
 	// Get number of entities in sourceList
 	listSize = getLength(sourceList);
 	// Check if list with source files is valid
@@ -1691,7 +1661,7 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 		// If source_name is invalid
 		if(source_name == NULL)
 		{
-			printf("Input error, problem with list of source files.\n");
+			printf("export: Input error, problem with list of source files.\n");
 			return false;
 		}
 	}
@@ -1709,11 +1679,11 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 			}
 
 			// Get the nodeid of the entity the source path leads to
-			source_nodeid = traverse_cfs(info,source_name,getPathStartId(info, source_name));
+			source_nodeid = traverse_cfs(info,source_name);
 			// If source path was invalid
 			if(source_nodeid == -1)
 			{
-				printf("Path %s could not be found in cfs.\n",source_name);
+				printf("export: Path %s could not be found in cfs.\n",source_name);
 				free(source_name);
 				return false;
 			}
@@ -1786,7 +1756,7 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 	// If less files than expected were found
 	if(i < listSize)
 	{
-		printf("Input error, problem with list of source files.\n");
+		printf("export: Input error, problem with list of source files.\n");
 		return false;
 	}
 
@@ -1834,6 +1804,8 @@ int cfs_create(cfs_info *info, int bSize,int nameSize,unsigned int maxFSize,int 
 	if(((info->sB).maxFilesPerDir + 2) % (info->sB).maxEntitiesPerBlock)
 		(info->sB).maxDirDatablockNum++;
 
+	// Root's nodeid
+	(info->sB).root = 0;
 	// Assume block-counting is zero based	
 	(info->sB).blockCounter = 0;
 	// Only root in cfs for now
@@ -1851,7 +1823,6 @@ int cfs_create(cfs_info *info, int bSize,int nameSize,unsigned int maxFSize,int 
 	int	blocknum;
 	// Get block for root's meatdata (one block for now)
 	blocknum = getEmptyBlock(info);
-	(info->sB).root = blocknum;
 	// Write blocknum in iTable map
 	SAFE_WRITE(info->fileDesc,&blocknum,0,sizeof(int),sizeof(int));
 

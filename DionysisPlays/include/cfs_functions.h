@@ -53,12 +53,11 @@ if(returnVal == error)															\
 }
 
 void update_superBlock(cfs_info*);
-int traverse_cfs(cfs_info*, char*,int);
+int traverse_cfs(cfs_info*, char*);
 
 int getTableSpace(cfs_info*);
 int getEmptyBlock(cfs_info*);
 int get_parent(cfs_info*,char*,char*);
-int getPathStartId(cfs_info*, char*);
 void replaceEntity(cfs_info*,int,int);
 void append_file(cfs_info*,int,int);
 int getDirEntities(cfs_info*,char*,string_List**);
