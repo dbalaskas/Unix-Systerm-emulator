@@ -548,7 +548,7 @@ int get_parent(cfs_info *info, char *path,char *new_name)
 	if(new_name != NULL)
 		strcpy(new_name,split);
 	// Find parent directoy in cfs (meaning in inodeTable)
-	parent_nodeid = traverse_cfs(info,parent_name);
+	parent_nodeid = traverse_cfs(info,parent_name,-1);
 	if(parent_nodeid == -1)
 	{
 		printf("Path %s could not be found in cfs.\n",parent_name);
@@ -601,7 +601,7 @@ int getDirEntities(cfs_info *info, char *directory_path, string_List **content)
 	if (directory_path == NULL)
 		return -1;
 	int 	 ignore;
-	int 	 directory_nodeid = traverse_cfs(info, directory_path);
+	int 	 directory_nodeid = traverse_cfs(info, directory_path,-1);
 	int 	*dir_data = (int*) (info->inodeTable + directory_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
 
 	char 	 fileName[(info->sB).filenameSize];
@@ -738,7 +738,7 @@ void print_data(cfs_info *info,char *path)
 		Datastream	data;
 
 		// Get entity's nodeid
-		nodeid = traverse_cfs(info,path);
+		nodeid = traverse_cfs(info,path,-1);
 		// If path was invalid
 		if(nodeid == -1)
 			printf("Path %s could not be found in cfs.\n",path);

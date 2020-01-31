@@ -53,7 +53,7 @@ if(returnVal == error)															\
 }
 
 void update_superBlock(cfs_info*);
-int traverse_cfs(cfs_info*, char*,int);
+int traverse_cfs(cfs_info*, char*, int);
 
 int getTableSpace(cfs_info*);
 int getEmptyBlock(cfs_info*);
