@@ -62,4 +62,4 @@ void replaceEntity(cfs_info*,int,int);
 void append_file(cfs_info*,int,int);
 int getDirEntities(cfs_info*,char*,string_List**);
 void print_data(cfs_info*,char*);
-
+void cleanSlashes(char**);

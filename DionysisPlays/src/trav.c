@@ -1,4 +1,4 @@
-int getPathStartId(cfs_info *info, char* path)
+/*int getPathStartId(cfs_info *info, char* path)
 {
 	int start;
 	char initial_path[strlen(path)+1];
@@ -147,4 +147,37 @@ int traverse_cfs(cfs_info *info,char *filename)
 	free(curr_name);
 	return start;
 }
+*/
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
+void cleanSlashes(char **path)
+{
+	char	*name = (char*)malloc(1);
+	int	i, size = 1;
+
+	for(i=0; i<(strlen(*path)); i++)
+	{
+		if((*path)[i] == '/' && (*path)[i+1] == '/')
+			continue;
+		else
+		{
+			name = realloc(name,++size);
+			name[size-2] = (*path)[i];
+		}
+	}
+	name[i] = '\0';
+	strcpy(*path,name);
+	free(name);
+}
+
+int main()
+{
+	char *path = (char*)malloc(100);
+	strcpy(path,"//");
+	cleanSlashes(&path);
+	printf("%s\n",path);
+	free(path);
+	return 0;
+}

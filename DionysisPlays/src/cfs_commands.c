@@ -218,6 +218,8 @@ int cfs_mkdir(cfs_info *info, char *dirname)
 	for(int i=0; i<=(info->sB).filenameSize; i++)
 		new_name[i] = '\0';
 
+	// Get rid of possible extra '/'
+	cleanSlashes(&dirname);
 	// Get parent's nodeid and new directory's name
 	parent_nodeid = get_parent(info,dirname,new_name);
 	if(parent_nodeid == -1)
@@ -371,6 +373,8 @@ int cfs_touch(cfs_info *info, char *filename,touch_mode mode)
 		for(int i=0; i<=(info->sB).filenameSize; i++)
 			new_name[i] = '\0';
 
+		// Get rid of possible extra '/'
+		cleanSlashes(&filename);
 		// Get parent's nodeid and new file's name
 		parent_nodeid = get_parent(info,filename,new_name);
 		if(parent_nodeid == -1)
@@ -531,6 +535,9 @@ int cfs_ln(cfs_info *info, char* source_path,char* destination)
 	int		 destination_nodeid;
 	MDS		*destination_mds;
 
+	// Get rid of possible extra '/'
+	cleanSlashes(&source_path);
+	cleanSlashes(&destination);
 	// Check if source exists.
 	get_parent(info, source_path, source_name);
 	source_nodeid = traverse_cfs(info, source_path);
@@ -668,6 +675,8 @@ bool cfs_cd(cfs_info *info, char *path)
 		info->cfs_current_nodeid = 0;
 		return true;
 	}
+	// Get rid of possible extra '/'
+	cleanSlashes(&path);
 	// Find the nodeid of the path.
 	path_nodeId = traverse_cfs(info, path);
 	// Check if the path has valid value.
@@ -709,6 +718,8 @@ bool cfs_ls(cfs_info *info, bool *ls_modes, char *path)
 		path_MDS = (MDS *) (info->inodeTable + path_nodeId*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
 		path_MDS->access_time = time(NULL);
 	} else {
+		// Get rid of possible extra '/'
+		cleanSlashes(&path);
 		path_nodeId = traverse_cfs(info, path);
 
 		// Check if the path has valid value.
@@ -853,6 +864,8 @@ bool cfs_cp(cfs_info *info, bool *cp_modes, string_List *sourceList, char *desti
 	// Copy each source to destination.
 	while (sourceList != NULL) {
 		source_path = pop_last_string(&sourceList);
+		// Get rid of possible extra '/'
+		cleanSlashes(&source_path);
 		// Get source inode.
 		get_parent(info, source_path, source_name);
 		source_nodeid = traverse_cfs(info, source_path);
@@ -870,6 +883,8 @@ bool cfs_cp(cfs_info *info, bool *cp_modes, string_List *sourceList, char *desti
 			continue;
 		}
 		//--------------------------------------------------------------------------------
+		// Get rid of possible extra '/'
+		cleanSlashes(&destination);
 		// Get destination inode.
 		destination_nodeid = traverse_cfs(info,destination_name);
 		strcpy(destination_path, destination);
@@ -1016,6 +1031,8 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 	for (int i=0; i<rm_mode_Num; i++)
 		rm_modes[i] = false;
 	//------------------------------------------------------------------------------------
+	// Get rid of possible extra '/'
+	cleanSlashes(&destination);
 	// Get destination's directory inode
 	directory_nodeid = get_parent(info, destination, destination_name);
 	if (directory_nodeid == -1) {
@@ -1026,6 +1043,8 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 	// Move each source to destination.
 	while (sourceList != NULL) {
 		source_path = pop_last_string(&sourceList);
+		// Get rid of possible extra '/'
+		cleanSlashes(&source_path);
 		// Get source inode.
 		get_parent(info, source_path, source_name);
 		source_nodeid = traverse_cfs(info, source_path);
@@ -1174,6 +1193,8 @@ bool cfs_rm(cfs_info *info, bool *modes, char *dirname)
 	MDS		*content_mds;
 	Datastream	content_data;
 
+	// Get rid of possible extra '/'
+	cleanSlashes(&dirname);
 	// Get the nodeid of the entity the destination path leads to
 	nodeid = traverse_cfs(info,dirname);
 	// If destination parth is invalid
@@ -1344,6 +1365,8 @@ bool cfs_cat(cfs_info *info, string_List *sourceList, char *outputPath)
 	int	listSize, i;
 	char	*source_name = NULL;
 
+	// Get rid of possible extra '/'
+	cleanSlashes(&outputPath);
 	// Get the nodeid of the entity the output path leads to
 	output_nodeid = traverse_cfs(info,outputPath);
 	// If output path was invalid
@@ -1370,6 +1393,8 @@ bool cfs_cat(cfs_info *info, string_List *sourceList, char *outputPath)
 		source_name = get_stringNode(&sourceList,i);
 		if(source_name != NULL)
 		{
+			// Get rid of possible extra '/'
+			cleanSlashes(&source_name);
 			source_nodeid = traverse_cfs(info,source_name);
 			if(source_nodeid == -1)
 			{
@@ -1435,6 +1460,8 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 	char		*split, *temp;
 	struct stat	entity;
 
+	// Get rid of possible extra '/'
+	cleanSlashes(&destPath);
 	// Get the nodeid of the entity the destination path leads to
 	dest_nodeid = traverse_cfs(info,destPath);
 	// If destination path was invalid
@@ -1479,6 +1506,8 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 		source_name = pop_last_string(&sourceList);
 		if(source_name != NULL)
 		{
+			// Get rid of possible extra '/'
+			cleanSlashes(&source_name);
 			// If source entity does not exist
 			if(access(source_name,F_OK) == -1)
 			{
@@ -1632,6 +1661,8 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 	int	listSize, i;
 	char	*source_name = NULL;
 
+	// Get rid of possible extra '/'
+	cleanSlashes(&destPath);
 	// If destination path does not exist
 	if(access(destPath,F_OK) == -1)
 	{
@@ -1671,13 +1702,16 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 	{
 		source_name = pop_last_string(&sourceList);
 		if(source_name != NULL)
-		{	// If it is '.' or '..' entity, ignore it
+		{
+			// If it is '.' or '..' entity, ignore it
 			if(!strcmp(source_name,".") || !strcmp(source_name,".."))
 			{
 				free(source_name);
 				continue;
 			}
 
+			// Get rid of possible extra '/'
+			cleanSlashes(&source_name);
 			// Get the nodeid of the entity the source path leads to
 			source_nodeid = traverse_cfs(info,source_name);
 			// If source path was invalid

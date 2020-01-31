@@ -785,3 +785,24 @@ void print_data(cfs_info *info,char *path)
 		}
 	}
 }
+
+void cleanSlashes(char **path)
+{
+	char	*name = (char*)malloc(1);
+	int	i, size = 1;
+
+	for(i=0; i<(strlen(*path)); i++)
+	{
+		if((*path)[i] == '/' && (*path)[i+1] == '/')
+			continue;
+		else
+		{
+			name = realloc(name,++size);
+			name[size-2] = (*path)[i];
+		}
+	}
+	name[size-1] = '\0';
+	strcpy(*path,name);
+
+	free(name);
+}
