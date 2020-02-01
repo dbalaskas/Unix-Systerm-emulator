@@ -839,7 +839,8 @@ bool remove_entity(cfs_info *info,char *path)
 	// If it is a file
 	if(metadata->type == File)
 	{
-		metadata->linkCounter--;
+		if (metadata->linkCounter == 0)
+			metadata->linkCounter--;
 		metadata->modification_time = time(NULL);
 		// If linkCounter is still above 0, file's metadata and data will not be removed
 		if(metadata->linkCounter)
@@ -928,7 +929,7 @@ bool remove_entity(cfs_info *info,char *path)
 						move = parent_data.datablocks[i]*(info->sB).blockSize + sizeof(int) + (dataCounter-1)*((info->sB).filenameSize+sizeof(int));
 						CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 						SAFE_READ(info->fileDesc,content_name,0,sizeof(char),(info->sB).filenameSize);
-						SAFE_READ(info->fileDesc,&content_nodeid,0,sizeof(char),(info->sB).filenameSize);
+						SAFE_READ(info->fileDesc,&content_nodeid,0,sizeof(int),sizeof(int));
 
 						// Fill the hole
 						move = parent_data.datablocks[i]*(info->sB).blockSize + sizeof(int) + j*((info->sB).filenameSize+sizeof(int));

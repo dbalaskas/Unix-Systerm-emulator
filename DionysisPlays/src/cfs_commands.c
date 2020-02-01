@@ -1034,7 +1034,10 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 	// Get rid of possible extra '/'
 	cleanSlashes(&destination);
 	// Get destination's directory inode
-	directory_nodeid = get_parent(info, destination, destination_name);
+	if (strcmp(destination, "./") == 0 || strcmp(destination, "../") == 0 || strcmp(destination, "/") == 0 || strcmp(destination, ".") == 0 || strcmp(destination, "..") == 0)
+		directory_nodeid = info->cfs_current_nodeid;
+	else
+		directory_nodeid = get_parent(info, destination, destination_name);
 	if (directory_nodeid == -1) {
 		printf("mv: cannot create directory '%s': No such file or directory\n", destination);
 		return false;
