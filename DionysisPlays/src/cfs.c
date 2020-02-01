@@ -68,7 +68,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_mkdir"))
 		{
 			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
+				printf("There is no cfs file opened. Try 'cfs_workwith' first.\n");
 			else
 			{
 				option = strtok_r(NULL," \t",&rest);
@@ -91,7 +91,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_touch"))
 		{
 			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
+				printf("There is no cfs file opened. Try 'cfs_workwith' first.\n");
 			else
 			{
 				option = strtok_r(NULL," \t",&rest);
@@ -129,7 +129,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_pwd"))
 		{
 			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
+				printf("There is no cfs file opened. Try 'cfs_workwith' first.\n");
 			else
 			{
 				option = strtok_r(NULL," \t",&rest);
@@ -143,7 +143,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_cd"))
 		{
 			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
+				printf("There is no cfs file opened. Try 'cfs_workwith' first.\n");
 			else
 			{
 				option = strtok_r(NULL," \t",&rest);
@@ -156,7 +156,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_ls"))
 		{
 			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
+				printf("There is no cfs file opened. Try 'cfs_workwith' first.\n");
 			else
 			{
 				bool ls_modes[ls_mode_Num];
@@ -203,7 +203,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_cp"))
 		{
 			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
+				printf("There is no cfs file opened. Try 'cfs_workwith' first.\n");
 			else
 			{
 				bool cp_modes[cp_mode_Num];
@@ -242,7 +242,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_cat"))
 		{
 			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
+				printf("There is no cfs file opened. Try 'cfs_workwith' first.\n");
 			else
 			{
 				bool		appended;
@@ -265,7 +265,7 @@ int main(void) {
 						appended = cfs_cat(&cfsInfo,sourceList,option_prev);
 						if(appended)
 						{
-							printf("List of sources appended to output file %s.\n",option_prev);
+							printf("List of sources appended to output file '%s'.\n",option_prev);
 							sourceList = NULL;
 						}
 						option_prev = NULL;
@@ -277,13 +277,13 @@ int main(void) {
 		else if(!strcmp(command,"cfs_ln"))
 		{
 			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
+				printf("There is no cfs file opened. Try 'cfs_workwith' first.\n");
 			else
 			{
 				if ((option = strtok_r(NULL," \t",&rest)) == NULL) {
 					printf("ln: missing file operand\n");
 				} else if ((value = strtok_r(NULL," \t",&rest)) == NULL) {
-					printf("ln: missing destination file operand after '%s'\n", option);					
+					printf("ln: missing destination file operand after '%s'.\n", option);					
 				} else {
 					cfs_ln(&cfsInfo, option, value);
 				}
@@ -292,7 +292,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_mv"))
 		{
 			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
+				printf("There is no cfs file opened. Try 'cfs_workwith' first.\n");
 			else
 			{
 				bool mv_modes[mv_mode_Num];
@@ -314,11 +314,11 @@ int main(void) {
 					option = strtok_r(NULL," \t",&rest);
 				}
 				if (sources == NULL) {
-					printf("mv: missing file operand\n");
+					printf("mv: missing file operand.\n");
 				} else {
 					destination = pop_string(&sources);
 					if (sources == NULL) 
-						printf("mv: missing destination file operand after '%s'\n", destination);
+						printf("mv: missing destination file operand after '%s'.\n", destination);
 					else
 						cfs_mv(&cfsInfo, mv_modes, sources, destination);
 				}
@@ -327,7 +327,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_rm"))
 		{
 			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
+				printf("There is no cfs file opened. Try 'cfs_workwith' first.\n");
 			else
 			{
 				bool		rm_modes[rm_mode_Num];
@@ -364,7 +364,7 @@ int main(void) {
 						{
 							removed = cfs_rm(&cfsInfo,rm_modes,dirname);
 							if(removed)
-								printf("Removed %s's contents from cfs.\n",dirname);
+								printf("Removed '%s''s contents from cfs.\n",dirname);
 
 							free(dirname);
 						}
@@ -375,7 +375,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_import"))
 		{
 			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
+				printf("There is no cfs file opened. Try 'cfs_workwith' first.\n");
 			else
 			{
 				bool		imported;
@@ -410,7 +410,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_export"))
 		{
 			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
+				printf("There is no cfs file opened. Try 'cfs_workwith' first.\n");
 			else
 			{
 				bool		exported;
@@ -514,7 +514,7 @@ int main(void) {
 		else if(!strcmp(command,"cfs_print"))
 		{
 			if(open_cfs == false)
-				printf("Cfs closed, try cfs_workwith first.\n");
+				printf("There is no cfs file opened. Try 'cfs_workwith' first.\n");
 			else
 			{
 				option = strtok_r(NULL," \t",&rest);
