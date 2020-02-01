@@ -1,0 +1,3 @@
+cfs_workwith test_noClose.cfs
+cfs_ls 
+cfs_exit
