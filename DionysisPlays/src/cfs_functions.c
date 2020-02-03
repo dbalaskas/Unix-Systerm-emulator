@@ -576,32 +576,41 @@ void append_file(cfs_info *info,int source_nodeid,int output_nodeid)
 	MDS		*source_mds, *output_mds;
 	Datastream	source_data, output_data;
 
+	// Get source's metadata and data
 	source_mds = (MDS*) (info->inodeTable + source_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
 	source_mds->access_time = time(NULL);
 	source_dataCounter = source_mds->datablocksCounter;
 	source_data.datablocks = (int*) (info->inodeTable + source_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
+	// Get destination's data
 	output_mds = (MDS*) (info->inodeTable + output_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
 	output_mds->access_time = time(NULL);
 	output_dataCounter = output_mds->datablocksCounter;
 	output_data.datablocks = (int*) (info->inodeTable + output_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
-
+	// Number of bytes to be read from source file to buffer
 	size_to_read = ((info->sB).blockSize > (source_mds->size-readSize)) ? (source_mds->size - readSize) : ((info->sB).blockSize);
+	// Point to start reading from in buffer
 	buff_offset = 0;
+	// Number of bytes unused in destination's last datablock
 	freeSpace = (info->sB).blockSize - (output_mds->size % (info->sB).blockSize);
+	// Number of bytes to write in destination file from buffer
 	size_to_write = ((info->sB).blockSize > freeSpace) ? (freeSpace) : ((info->sB).blockSize);
+	// If there is free space in destination's last block, will write on this block first
 	if(freeSpace < (info->sB).blockSize)
 		offset = -1;
+	// Else, will write on a new block
 	else
 	{
 		offset = 0;
 		output_data.datablocks[output_dataCounter+offset] = getEmptyBlock(info);
 	}
+	// Block to write on
 	output_block = output_data.datablocks[output_dataCounter+offset];
+	// Offset on output_block
 	move = output_block*(info->sB).blockSize + (info->sB).blockSize - freeSpace;
 
 	int i = 0;
 	while(i<source_dataCounter)
-	{
+	{	// If we are ready to read from source file
 		if(readNext)
 		{
 			// Read i-th block from sourch file
@@ -609,51 +618,63 @@ void append_file(cfs_info *info,int source_nodeid,int output_nodeid)
 			CALL(lseek(info->fileDesc,source_block*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 			SAFE_READ(info->fileDesc,buffer,0,sizeof(char),size_to_read);
 		}
-//		readSize += size_to_read;
-//		size_to_read = ((info->sB).blockSize > (source_mds->size-readSize)) ? (source_mds->size - readSize) : ((info->sB).blockSize);
-
-		// Write it to the respective block of the output file
-//		output_block = getEmptyBlock(info);
-//		output_data.datablocks[output_dataCounter+i] = output_block;
+		// Write on the appropriate block from the appropriate point of the buffer
 		CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
 		SAFE_WRITE(info->fileDesc,buffer,buff_offset,sizeof(char),size_to_write);
+		// If destination block is full and written bytes are less than the ones read, will keep writing on another block
 		if((buff_offset + size_to_write) < size_to_read)
-		{
+		{	// Should not try reading for now
 			readNext = false;
+			// Free space is a hole block
 			freeSpace = (info->sB).blockSize;
+			// Haven't written on new block yet
 			writtenSize = 0;
+			// Will keep reading from buffer from where we stopped
 			buff_offset = size_to_write;
+			// Will write what is left from read bytes (less than block size)
 			size_to_write = size_to_read - size_to_write;
+			// Will allocate a new block, will add it at the end of the destination file
 			offset++;
 			output_data.datablocks[output_dataCounter+offset] = getEmptyBlock(info);
 		}
 		else
-		{
+		{	// Go to source's next datablock
 			i++;
+			// We are ready to read next block now, all bytes that were read last time have been written
 			readNext = true;
+			// Number of bytes read from source file so far
 			readSize += size_to_read;
+			// Number of bytes to be read next
 			size_to_read = ((info->sB).blockSize > (source_mds->size-readSize)) ? (source_mds->size - readSize) : ((info->sB).blockSize);
+			// If last writing ended inside of the block
 			if(size_to_write < (info->sB).blockSize)
-			{
+			{	// Free space is the rest of the block
 				freeSpace = (info->sB).blockSize - size_to_write;
+				// Number of bytes written in current block so far
 				writtenSize = size_to_write;
 			}
+			// If last writting filled all the block
 			else
-			{
+			{	// Will allocate another block
 				offset++;
 				output_data.datablocks[output_dataCounter+offset] = getEmptyBlock(info);
+				// Nothing written in new block so far
 				writtenSize = 0;
 			}
-
+			// Will start writing from the beginning of the buffer
 			buff_offset = 0;
+			// Number of bytes to be written next
 			size_to_write = ((info->sB).blockSize > freeSpace) ? (freeSpace) : ((info->sB).blockSize);
 		}
+		// Go to the appropriate block in the destination file
 		output_block = output_data.datablocks[output_dataCounter+offset];
 		move = output_block*(info->sB).blockSize + writtenSize;
 	}
-
+	// Increase destination's datablocksCounter
 	output_mds->datablocksCounter += source_dataCounter;
-	if((output_mds->size % (info->sB).blockSize) + (source_mds->size % (info->sB).blockSize) == (info->sB).blockSize)
+	// If remaining bytes from both source and destination file (in files' last blocks) can be combined in one block
+	// One less datablock was needed
+	if((output_mds->size % (info->sB).blockSize) + (source_mds->size % (info->sB).blockSize) <= (info->sB).blockSize)
 		output_mds->datablocksCounter--;
 	output_mds->size += source_mds->size;
 	output_mds->modification_time = time(NULL);
