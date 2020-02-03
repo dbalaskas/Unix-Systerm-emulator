@@ -51,3 +51,8 @@ debug:
 run:
 	@echo "Executing cfs..."
 	./$(BDIR)/cfs
+commands:
+	@echo "Executing cfs from command_list..."
+	$(RM) myfiles.cfs
+	$(RM) -r ./doc/myfiles.cfs
+	./$(BDIR)/cfs < ./command_list

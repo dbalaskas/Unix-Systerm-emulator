@@ -264,10 +264,7 @@ int main(void) {
 					{
 						appended = cfs_cat(&cfsInfo,sourceList,option_prev);
 						if(appended)
-						{
-							printf("List of sources appended to output file '%s'.\n",option_prev);
 							sourceList = NULL;
-						}
 						option_prev = NULL;
 					}
 				}
@@ -364,7 +361,7 @@ int main(void) {
 						{
 							removed = cfs_rm(&cfsInfo,rm_modes,dirname);
 							if(removed)
-								printf("Removed '%s''s contents from cfs.\n",dirname);
+								printf("Removed '%s''s allowed contents from cfs.\n",dirname);
 
 							free(dirname);
 						}
@@ -397,10 +394,7 @@ int main(void) {
 					{
 						imported = cfs_import(&cfsInfo,sourceList,option_prev);
 						if(imported)
-						{
-							printf("List of sources imported to output directory %s.\n",option_prev);
 							sourceList = NULL;
-						}
 						option_prev = NULL;
 					}
 				}
@@ -432,10 +426,7 @@ int main(void) {
 					{
 						exported = cfs_export(&cfsInfo,sourceList,option_prev);
 						if(exported)
-						{
-							printf("List of sources exported to output directory %s.\n",option_prev);
 							sourceList = NULL;
-						}
 						option_prev = NULL;
 					}
 				}
@@ -485,14 +476,15 @@ int main(void) {
 				if (cfsInfo.fileName == NULL) {
 					printf("Input error, too few arguments.\n");
 				} else {
+					int len = strlen(cfsInfo.fileName);
+					char *last_four = cfsInfo.fileName+len-4;
+					if(strcmp(last_four, ".cfs") != 0) {
+						strncat(cfsInfo.fileName, ".cfs", 4);
+					}
+
 					if (access( cfsInfo.fileName, F_OK ) != -1){
 						printf("cfs file already exists\n");
 					} else {
-						int len = strlen(cfsInfo.fileName);
-						char *last_four = cfsInfo.fileName+len-4;
-						if(strcmp(last_four, ".cfs") != 0) {
-							strncat(cfsInfo.fileName, ".cfs", 4);
-						}
 						cfsInfo.fileDesc = cfs_create(&cfsInfo,bSize,filenameSize,maxFSize,maxDirFileNum);
 						if(cfsInfo.fileDesc != -1)
 							printf("Cfs file %s created.\n",cfsInfo.fileName);

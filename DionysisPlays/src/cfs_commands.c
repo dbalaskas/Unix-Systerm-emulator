@@ -14,7 +14,6 @@ int cfs_workwith(cfs_info *info)
 	int	current_iblock[((info->sB).iTableBlocksNum)];
 	MDS	*metadata;
 
-	// CALL(open(filename, O_RDWR),-1,"Error opening file for cfs: ",2,fd);
 	if((info->fileDesc = open(info->fileName, O_RDWR)) == -1) {
 		perror("Error opening file for cfs: ");
 		return -1;
@@ -238,7 +237,7 @@ int cfs_mkdir(cfs_info *info, char *dirname)
 	// Check if new directory exists
 	if(traverse_cfs(info,new_name,parent_nodeid) != -1)
 	{
-		printf("mkdir: '%s' already exists.\n",dirname);
+		printf("mkdir: Input error, '%s' already exists.\n",dirname);
 		return -1;
 	}
 
@@ -395,7 +394,7 @@ int cfs_touch(cfs_info *info, char *filename,touch_mode mode)
 		// Check if file exists
 		if(traverse_cfs(info,new_name,parent_nodeid) != -1)
 		{
-			printf("touch: '%s' already exists.\n",filename);
+			printf("touch: Input error, '%s' already exists.\n",filename);
 			return -1;
 		}
 
@@ -482,6 +481,7 @@ int cfs_touch(cfs_info *info, char *filename,touch_mode mode)
 		metadata->access_time = curr_time;
 		metadata->modification_time = curr_time;
 		metadata->datablocksCounter = 0;
+		metadata->linkCounter = 1;
 
 		offset += sizeof(MDS);
 		data.datablocks = (int*) (info->inodeTable + offset);
@@ -1022,7 +1022,6 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 	char		 line[100];
 	char		*answer;
 	string_List *directory_inodeList;
-//	bool		rm_modes[rm_mode_Num];
 
 	char 		*source_path;
 	char 		 source_name[(info->sB).filenameSize];
@@ -1036,8 +1035,6 @@ bool cfs_mv(cfs_info *info, bool *mv_modes, string_List *sourceList, char *desti
 	int			 destination_nodeid;
 	MDS 		*destination_mds;
 
-//	rm_modes[RM_I] = false;
-//	rm_modes[RM_R] = true;
 	//------------------------------------------------------------------------------------
 	// Get rid of possible extra '/'
 	cleanSlashes(&destination);
@@ -1265,7 +1262,7 @@ bool cfs_rm(cfs_info *info, bool *modes, char *path)
 							answer = strtok(line," \n\t");
 
 						// If user said no, go to the next entity
-						if(answer == NULL || strcmp(answer,"y") || strcmp(answer,"Y"))
+						if(answer == NULL || (strcmp(answer,"y") && strcmp(answer,"Y")))
 						{
 							// If there is a hole inside datablock, fill it
 							if(j > newCounter)
@@ -1277,6 +1274,7 @@ bool cfs_rm(cfs_info *info, bool *modes, char *path)
 							}
 							// Increase newCounter and go to the next entity
 							newCounter++;
+							printf("rm: target '%s' will not be removed.\n",content_name);
 							continue;
 						}
 					}
@@ -1459,9 +1457,10 @@ bool cfs_cat(cfs_info *info, string_List *sourceList, char *outputPath)
 		{
 			printf("cat: cannot stat '%s': No such file or directory.\n",source_name);
 			free(source_name);
-			return false;
+			continue;
 		}
 		append_file(info,source_nodeid,output_nodeid);
+		printf("cat: target '%s' appended to destination '%s'\n",source_name,outputPath);
 		free(source_name);
 	}
 
@@ -1538,7 +1537,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 			{
 				printf("cfs_import: Input error, source entity '%s' does not exist.\n",source_name);
 				free(source_name);
-				return false;
+				continue;
 			}
 			// New entity will be in destination directory
 			initial = (char*)malloc(strlen(source_name)+1);
@@ -1558,9 +1557,10 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 			// Try to get source's type
 			if(stat(source_name,&entity) == -1)
 			{
-				perror("Error with stat in source entity: ");
+				printf("cfs_import in target '%s':\n",source_name);
+				perror("Error with stat: ");
 				free(source_name);
-				return false;
+				continue;
 			}
 			// If it is a directory
 			if(S_ISDIR(entity.st_mode))
@@ -1571,9 +1571,10 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 
 				if((dir = opendir(source_name)) == NULL)
 				{
+					printf("cfs_import in target '%s':\n",source_name);
 					perror("Error opening source directory: ");
 					free(source_name);
-					return false;
+					continue;
 				}
 
 				// Create a new directory in cfs (under the appropriate parent directory)
@@ -1581,7 +1582,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 				if(source_nodeid == -1)
 				{
 					free(source_name);
-					return false;
+					continue;
 				}
 
 				string_List	*contentList = NULL;
@@ -1606,17 +1607,18 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 
 				if((source_fd = open(source_name, O_RDONLY)) == -1)
 				{
+					printf("cfs_import in target '%s':\n",source_name);
 					perror("Error opening source file: ");
 					free(source_name);
-					return false;
+					continue;
 				}
 
 				// Create a new file in cfs (under the appropriate parent directory)
 				source_nodeid = cfs_touch(info,new_path,CRE);
 				if(source_nodeid == -1)
 				{
-//					free(source_name);
-					return false;
+					free(source_name);
+					continue;
 				}
 				move = source_nodeid*(info->inodeSize) + sizeof(bool) + ((info->sB).filenameSize);
 				source_mds = (MDS*) (info->inodeTable + move);
@@ -1657,6 +1659,7 @@ bool cfs_import(cfs_info *info,string_List *sourceList,char *destPath)
 				close(source_fd);
 				source_mds->size += source_end;
 			}
+			printf("cfs_import: target '%s' imported to destination '%s'.\n",source_name,destPath);
 			free(source_name);
 		}
 			
@@ -1744,9 +1747,10 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 			{
 				printf("cfs_export: Path '%s' could not be found in cfs.\n",source_name);
 				free(source_name);
-				return false;
+				continue;
 			}
-			// New entity will be in destination directory
+				
+			// New subdirectory will be in destination directory
 			initial = (char*)malloc(strlen(source_name)+1);
 			strcpy(initial,source_name);
 			split = strtok(initial,"/");
@@ -1759,7 +1763,7 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 			strcpy(new_path,destPath);
 			strcat(new_path,"/");
 			// If current entity is the root, new directory's name will be the name of the cfs file
-			if(!strcmp(split,"/"))
+			if(split == NULL)
 				strcat(new_path,info->fileName);
 			else
 				strcat(new_path,split);
@@ -1771,25 +1775,43 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 			if(source_mds->type == Directory)
 			{
 				// Create subdirectory
-				CALL(mkdir(new_path, S_IRWXU | S_IXGRP),-1,"Error creating directory from cfs: ",1,ignore);
+				if(mkdir(new_path, S_IRWXU | S_IXGRP) == -1)
+				{
+					printf("cfs_export in target '%s':\n",source_name);
+					perror("Error creating directory from cfs: ");
+					free(source_name);
+					continue;
+				}
+
 				// Get subdirectory's contents and export them
 				string_List	*contentList = NULL;
 				getDirEntities(info,source_name,&contentList);
+
 				cfs_export(info,contentList,new_path);
 			}
 			// If it is a file
 			else
 			{
-				int		move;
+				int		move, readSize, size_to_read;
 				int		source_fd;
 				char		fileBuffer[(info->sB).blockSize];
 				Datastream	data;
 
 				// Create file
-				CALL(creat(new_path, S_IRWXU | S_IXGRP),-1,"Error creating file from cfs: ",1,source_fd);
+				if((source_fd = creat(new_path, S_IRWXU | S_IXGRP)) == -1)
+				{
+					printf("cfs_export in target '%s':\n",source_name);
+					perror("Error creating file from cfs: ");
+					free(source_name);
+					continue;
+				}
 
 				move = source_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS);
 				data.datablocks = (int*) (info->inodeTable + move);
+
+				// Number of bytes read so far, and number of bytes to be read next
+				readSize = 0;
+				size_to_read = (((info->sB).blockSize) > (source_mds->size-readSize)) ? (source_mds->size-readSize) : ((info->sB).blockSize);
 
 				for(int i=0; i<((info->sB).maxFileDatablockNum); i++)
 				{
@@ -1797,14 +1819,16 @@ bool cfs_export(cfs_info *info,string_List *sourceList,char *destPath)
 					{
 						move = data.datablocks[i]*((info->sB).blockSize);
 						CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-						SAFE_READ(info->fileDesc,fileBuffer,0,sizeof(char),(info->sB).blockSize);
-						SAFE_WRITE(source_fd,fileBuffer,0,sizeof(char),(info->sB).blockSize);
+						SAFE_READ(info->fileDesc,fileBuffer,0,sizeof(char),size_to_read);
+						SAFE_WRITE(source_fd,fileBuffer,0,sizeof(char),size_to_read);
+						readSize += size_to_read;
+						size_to_read = (((info->sB).blockSize) > (source_mds->size-readSize)) ? (source_mds->size-readSize) : ((info->sB).blockSize);
 					}
 				}
 
 				close(source_fd);
 			}
-
+			printf("cfs_export: target '%s' exported to destination '%s'.\n",source_name,destPath);
 			free(source_name);
 		}
 
@@ -1837,7 +1861,7 @@ int cfs_create(cfs_info *info, int bSize,int nameSize,unsigned int maxFSize,int 
 	// Block size has to be a multiple of 512 bytes
 	if(bSize != -1 && (bSize % BLOCK_SIZE))
 	{
-		printf("Input error, block size is too small. Please try again.\n");
+		printf("Input error, incompatible block size. Please try again.\n");
 		return -1;
 	}
 	(info->sB).blockSize = (bSize != -1) ? bSize : BLOCK_SIZE;

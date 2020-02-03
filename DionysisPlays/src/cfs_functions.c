@@ -421,46 +421,50 @@ void replaceEntity(cfs_info *info, int source_nodeid, int destination_nodeid)
 	MDS *destination_mds = (MDS*) (info->inodeTable + destination_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
 	destination_mds->access_time = time(NULL);
 	int *destination_data = (int*) (info->inodeTable + destination_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
-	int destination_dataBlocksNum = destination_mds->datablocksCounter;
 
 	int ignore;
 	int j = 0;
-	bool blocksExpired = false;
 	int blockNum;
 	char buff[(info->sB).blockSize];
 	int blocksUsed = 0;
+	int readSize = 0;
+	int size_to_read = ((info->sB).blockSize > (source_mds->size - readSize)) ? (source_mds->size - readSize) : ((info->sB).blockSize);
+	// For source's each datablock
 	for (int i=0; i < (info->sB).maxFileDatablockNum; i++) {
+		// If source's current datablock has contents
 		if (source_data[i] != -1) {
-			if (blocksExpired == false) {
-				while (destination_data[j] == -1)
-					j++;
+			// If destination's current datablock has contents, overwrite it
+			if(destination_data[j] != -1) {
 				blockNum = destination_data[j];
-				j++;
-				blocksUsed++;
-				if (blocksUsed == destination_dataBlocksNum){
-					blocksExpired = true;
-					j=0;
-				}
+			// Else, allocate another block
 			} else {
 				blockNum = getEmptyBlock(info);
-				// j = 0;
-				while (destination_data[j] != -1)
-					j++;
 				destination_data[j] = blockNum;
-				
 			}
-			
+			// Read as many bytes as possible from source datablock			
 			CALL(lseek(info->fileDesc,source_data[i]*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-			SAFE_READ(info->fileDesc,buff,0,sizeof(char),(info->sB).blockSize);
-
+			SAFE_READ(info->fileDesc,buff,0,sizeof(char),size_to_read);
+			// Write read bytes to destination
 			CALL(lseek(info->fileDesc,blockNum*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-			SAFE_WRITE(info->fileDesc,buff,0,sizeof(char),(info->sB).blockSize);
+			SAFE_WRITE(info->fileDesc,buff,0,sizeof(char),size_to_read);
+			// Increase number of bytes read so far, and get number of bytes to be read next
+			readSize += size_to_read;
+			size_to_read = ((info->sB).blockSize > (source_mds->size - readSize)) ? (source_mds->size - readSize) : ((info->sB).blockSize);
+			// Go to destination's next datablock
+			j++;
+			// Increase number of source datablocks used
+			blocksUsed++;
 		}
+		// If all source datablocks are read
 		if (blocksUsed == source_dataBlocksNum)
 			break;
 	}
-	if (blocksExpired == false) {
-		for(;j<(info->sB).maxFileDatablockNum;j++) {
+	// For the rest of the destination datablocks (that were not overwritten)
+	for(;j<(info->sB).maxFileDatablockNum;j++) {
+		// If current destination datablock has contents, add it to holesList
+		if(destination_data[j] != -1) {
+			addNode(&(info->holes),destination_data[j]);
+			(info->sB).ListSize++;
 			destination_data[j] = -1;
 		}
 	}
@@ -562,9 +566,12 @@ int get_parent(cfs_info *info, char *path,char *new_name)
 
 void append_file(cfs_info *info,int source_nodeid,int output_nodeid)
 {
-	int		ignore = 0;
+	int		move, ignore = 0;
+	int		readSize = 0, writtenSize = 0;
+	int		size_to_read, size_to_write, freeSpace, offset, buff_offset;
 	int		source_block, output_block;
 	int		source_dataCounter, output_dataCounter;
+	bool		readNext = true;
 	char		buffer[(info->sB).blockSize];
 	MDS		*source_mds, *output_mds;
 	Datastream	source_data, output_data;
@@ -576,22 +583,78 @@ void append_file(cfs_info *info,int source_nodeid,int output_nodeid)
 	output_mds = (MDS*) (info->inodeTable + output_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize);
 	output_mds->access_time = time(NULL);
 	output_dataCounter = output_mds->datablocksCounter;
-	output_data.datablocks = (int*) (info->inodeTable + source_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
+	output_data.datablocks = (int*) (info->inodeTable + output_nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
 
-	for(int i=0; i<source_dataCounter; i++)
+	size_to_read = ((info->sB).blockSize > (source_mds->size-readSize)) ? (source_mds->size - readSize) : ((info->sB).blockSize);
+	buff_offset = 0;
+	freeSpace = (info->sB).blockSize - (output_mds->size % (info->sB).blockSize);
+	size_to_write = ((info->sB).blockSize > freeSpace) ? (freeSpace) : ((info->sB).blockSize);
+	if(freeSpace < (info->sB).blockSize)
+		offset = -1;
+	else
 	{
-		// Read i-th block from sourch file
-		source_block = source_data.datablocks[i];
-		CALL(lseek(info->fileDesc,source_block*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-		SAFE_READ(info->fileDesc,buffer,0,sizeof(char),(info->sB).blockSize);
+		offset = 0;
+		output_data.datablocks[output_dataCounter+offset] = getEmptyBlock(info);
+	}
+	output_block = output_data.datablocks[output_dataCounter+offset];
+	move = output_block*(info->sB).blockSize + (info->sB).blockSize - freeSpace;
+
+	int i = 0;
+	while(i<source_dataCounter)
+	{
+		if(readNext)
+		{
+			// Read i-th block from sourch file
+			source_block = source_data.datablocks[i];
+			CALL(lseek(info->fileDesc,source_block*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+			SAFE_READ(info->fileDesc,buffer,0,sizeof(char),size_to_read);
+		}
+//		readSize += size_to_read;
+//		size_to_read = ((info->sB).blockSize > (source_mds->size-readSize)) ? (source_mds->size - readSize) : ((info->sB).blockSize);
+
 		// Write it to the respective block of the output file
-		output_block = getEmptyBlock(info);
-		output_data.datablocks[output_dataCounter+i] = output_block;
-		CALL(lseek(info->fileDesc,output_block*(info->sB).blockSize,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
-		SAFE_WRITE(info->fileDesc,buffer,0,sizeof(char),(info->sB).blockSize);
+//		output_block = getEmptyBlock(info);
+//		output_data.datablocks[output_dataCounter+i] = output_block;
+		CALL(lseek(info->fileDesc,move,SEEK_SET),-1,"Error moving ptr in cfs file: ",5,ignore);
+		SAFE_WRITE(info->fileDesc,buffer,buff_offset,sizeof(char),size_to_write);
+		if((buff_offset + size_to_write) < size_to_read)
+		{
+			readNext = false;
+			freeSpace = (info->sB).blockSize;
+			writtenSize = 0;
+			buff_offset = size_to_write;
+			size_to_write = size_to_read - size_to_write;
+			offset++;
+			output_data.datablocks[output_dataCounter+offset] = getEmptyBlock(info);
+		}
+		else
+		{
+			i++;
+			readNext = true;
+			readSize += size_to_read;
+			size_to_read = ((info->sB).blockSize > (source_mds->size-readSize)) ? (source_mds->size - readSize) : ((info->sB).blockSize);
+			if(size_to_write < (info->sB).blockSize)
+			{
+				freeSpace = (info->sB).blockSize - size_to_write;
+				writtenSize = size_to_write;
+			}
+			else
+			{
+				offset++;
+				output_data.datablocks[output_dataCounter+offset] = getEmptyBlock(info);
+				writtenSize = 0;
+			}
+
+			buff_offset = 0;
+			size_to_write = ((info->sB).blockSize > freeSpace) ? (freeSpace) : ((info->sB).blockSize);
+		}
+		output_block = output_data.datablocks[output_dataCounter+offset];
+		move = output_block*(info->sB).blockSize + writtenSize;
 	}
 
 	output_mds->datablocksCounter += source_dataCounter;
+	if((output_mds->size % (info->sB).blockSize) + (source_mds->size % (info->sB).blockSize) == (info->sB).blockSize)
+		output_mds->datablocksCounter--;
 	output_mds->size += source_mds->size;
 	output_mds->modification_time = time(NULL);
 }
@@ -709,7 +772,8 @@ void print_data(cfs_info *info,char *path)
 						int	datablocks[content_mds.datablocksCounter];
 						SAFE_READ(info->fileDesc,datablocks,0,sizeof(int),content_mds.datablocksCounter*sizeof(int));
 						// Print the filename, datablock-counter and the numbers of the datablocks
-						printf("%s\tdatablocksCounter: %d\n",content_name,content_mds.datablocksCounter);
+						printf("%s\tdatablocksCounter: %d\tlinkCounter: %d\n",
+							content_name,content_mds.datablocksCounter,content_mds.linkCounter);
 						if(content_mds.datablocksCounter > 0)
 							printf("Datablocks: ");
 						for(int j=0; j<(content_mds.datablocksCounter); j++)
@@ -749,7 +813,8 @@ void print_data(cfs_info *info,char *path)
 			data.datablocks = (int*) (info->inodeTable + nodeid*(info->inodeSize) + sizeof(bool) + (info->sB).filenameSize + sizeof(MDS));
 			// Print entity's name and nodeid
 			printf("%s->%d\n",info->inodeTable+nodeid*(info->inodeSize)+sizeof(bool),nodeid);
-			printf("type: %d\tsize: %d\tparent: %d\tdatablocksCounter: %d\n",metadata->type,metadata->size,metadata->parent_nodeid,metadata->datablocksCounter);
+			printf("type: %d\tsize: %d\tparent: %d\tdatablocksCounter: %d\tlinkCounter: %d\n",
+				metadata->type,metadata->size,metadata->parent_nodeid,metadata->datablocksCounter,metadata->linkCounter);
 
 			int	content_nodeid;
 			char	content_name[(info->sB).filenameSize];
