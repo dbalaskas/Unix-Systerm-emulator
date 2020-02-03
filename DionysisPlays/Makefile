@@ -2,7 +2,7 @@
 #  Created by Dionysis Taxiarchis Balaskas on 2/12/19.
 #  Copyright © 2019 D.T.Balaskas. All rights reserved.
 #####################################################################
-.PHONY: default clean run
+.PHONY: clean default run
 CXX= gcc
 CXXFLAGS= -Wall -g3
 LDLIBS= -lrt
@@ -43,7 +43,6 @@ clean:
 	@echo "Cleaning up..."
 	$(RM) $(ODIR)/*
 	$(RM) $(BDIR)/*
-	$(RM) myfiles.cfs
 debug:
 	@echo "Debugging cfs..."
 	$(CXX) $(GDBFLAGS) $(SRCDIR)/cfs.c $(SRCDIR)/cfs_commands.c $(SRCDIR)/cfs_functions.c $(SRCDIR)/list.c -o $(BDIR)/cfs

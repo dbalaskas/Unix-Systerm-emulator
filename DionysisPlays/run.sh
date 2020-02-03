@@ -1,3 +1,3 @@
 make cfs
-./bin/cfs
+make run
 cfs_workwith myfile.cfs

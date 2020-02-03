@@ -9,8 +9,8 @@ cfs_cd /home/users
 cfs_mkdir sdi17156 ad
 cfs_cd ./ad
 cfs_mkdir Mail Comms K22
-cfs_export / ./doc
 cfs_cd
 cfs_import ./myfiles.cfs /home/users/ad
+cfs_export / ./doc
 cfs_ls -r /
 cfs_exit
