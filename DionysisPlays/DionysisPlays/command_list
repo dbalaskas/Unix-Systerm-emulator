@@ -1,0 +1,16 @@
+cfs_create myfiles
+cfs_workwith myfiles.cfs
+cfs_mkdir /bin ./dev etc home proc
+cfs_touch vmlinux
+cfs_cd ./home
+cfs_mkdir users /home/users1 ../home/users2 ./users3
+cfs_mkdir ./users1/sdi09123
+cfs_cd /home/users
+cfs_mkdir sdi17156 ad
+cfs_cd ./ad
+cfs_mkdir Mail Comms K22
+cfs_cd
+cfs_import ./myfiles.cfs /home/users/ad
+cfs_export / ./doc
+cfs_ls -r /
+cfs_exit
